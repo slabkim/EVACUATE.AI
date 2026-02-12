@@ -20,6 +20,10 @@ export async function generateEarthquakeReply(
   const systemPrompt = buildSystemPrompt(input);
   const message = input.message ?? '';
 
+  if (isCasualQuestion(message)) {
+    return casualReply();
+  }
+
   if (!isDisasterScope(message)) {
     return outOfScopeReply();
   }
@@ -237,6 +241,26 @@ function isDisasterScope(message: string): boolean {
 
 function outOfScopeReply(): string {
   return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/banjir/kebakaran/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
+}
+
+function isCasualQuestion(message: string): boolean {
+  const text = message.toLowerCase().trim();
+  const patterns = [
+    'nama kamu siapa',
+    'kamu siapa',
+    'siapa kamu',
+    'siapa nama kamu',
+    'nama anda siapa',
+    'kamu bot apa',
+    'bot apa',
+    'siapa namamu',
+    'namamu siapa',
+  ];
+  return patterns.some((pattern) => text.includes(pattern));
+}
+
+function casualReply(): string {
+  return 'Saya AI Darurat EVACUATE.AI. Saya fokus membantu info keselamatan bencana. Jika ada situasi bencana yang ingin ditanyakan, silakan beri detailnya.';
 }
 
 async function fetchWithRetry(
