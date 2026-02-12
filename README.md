@@ -29,7 +29,7 @@ Tambahkan variable berikut pada project Vercel:
 - `BMKG_FEED` (opsional: `autogempa` | `m5` | `dirasakan`, default `autogempa`)
 - `BMKG_URL` (opsional, override langsung endpoint BMKG apa pun)
 - `GEMINI_API_KEY`
-- `GEMINI_MODEL` (opsional, default `gemini-1.5-flash-latest`)
+- `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
 
 Catatan:
 

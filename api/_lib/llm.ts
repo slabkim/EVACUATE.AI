@@ -169,8 +169,8 @@ async function requestGemini(
     throw new Error("GEMINI_API_KEY tidak tersedia.");
   }
 
-  const model = (readEnv("GEMINI_MODEL") || "gemini-1.5-flash-latest").trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const model = (readEnv("GEMINI_MODEL") || "gemini-1.5-flash").trim();
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
 
   const historyContents: Array<{
     role: "user" | "model";
