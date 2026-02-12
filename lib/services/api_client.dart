@@ -30,11 +30,16 @@ class ApiClient {
     return EarthquakeEvent.fromJson(data['event'] as Map<String, dynamic>);
   }
 
-  Future<List<EarthquakeEvent>> getEarthquakeEvents({int limit = 20}) async {
+  Future<List<EarthquakeEvent>> getEarthquakeEvents({
+    int limit = 20,
+    String? feed,
+  }) async {
     final safeLimit = limit <= 0 ? 20 : limit;
-    const feed = 'dirasakan';
+    final feedQuery = (feed == null || feed.trim().isEmpty)
+        ? ''
+        : '&feed=${Uri.encodeQueryComponent(feed.trim())}';
     final response = await _client
-        .get(_uri('/api/bmkg/list?limit=$safeLimit&feed=$feed'))
+        .get(_uri('/api/bmkg/list?limit=$safeLimit$feedQuery'))
         .timeout(const Duration(seconds: 15));
     final data = _decode(response);
     final rawEvents = data['events'];

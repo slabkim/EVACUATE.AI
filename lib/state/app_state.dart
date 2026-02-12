@@ -11,16 +11,52 @@ import '../services/api_client.dart';
 import '../services/fcm_service.dart';
 import '../services/location_service.dart';
 
+enum EarthquakeFeedCategory { latest, strong, felt }
+
+extension EarthquakeFeedCategoryX on EarthquakeFeedCategory {
+  String get label {
+    switch (this) {
+      case EarthquakeFeedCategory.latest:
+        return 'Gempa Terkini';
+      case EarthquakeFeedCategory.strong:
+        return 'M 5.0+';
+      case EarthquakeFeedCategory.felt:
+        return 'Dirasakan';
+    }
+  }
+
+  String get feedParam {
+    switch (this) {
+      case EarthquakeFeedCategory.latest:
+        return 'autogempa';
+      case EarthquakeFeedCategory.strong:
+        return 'm5';
+      case EarthquakeFeedCategory.felt:
+        return 'dirasakan';
+    }
+  }
+
+  int get defaultLimit {
+    switch (this) {
+      case EarthquakeFeedCategory.latest:
+        return 1;
+      case EarthquakeFeedCategory.strong:
+      case EarthquakeFeedCategory.felt:
+        return 100;
+    }
+  }
+}
+
 class AppState extends ChangeNotifier {
-  static const double _homeNearbyRadiusKm = 100;
+  static const double _homeNearbyRadiusKm = 200;
 
   AppState({
     required ApiClient apiClient,
     required LocationService locationService,
     required FcmService fcmService,
-  })  : _apiClient = apiClient,
-        _locationService = locationService,
-        _fcmService = fcmService;
+  }) : _apiClient = apiClient,
+       _locationService = locationService,
+       _fcmService = fcmService;
 
   final ApiClient _apiClient;
   final LocationService _locationService;
@@ -34,33 +70,48 @@ class AppState extends ChangeNotifier {
   bool _initialized = false;
   bool _isInitializing = false;
   bool _isLoadingHome = false;
+  bool _isLoadingMapFeed = false;
   bool _isSendingMessage = false;
   bool _hasUnreadNotifications = false;
   int _selectedTab = 0;
+  EarthquakeFeedCategory _selectedMapFeed = EarthquakeFeedCategory.felt;
   ThemeMode _themeMode = ThemeMode.system;
   double _radiusKm = 150;
 
   UserLocation? _userLocation;
   EarthquakeEvent? _latestEvent;
   List<EarthquakeEvent> _recentEvents = <EarthquakeEvent>[];
+  final Map<EarthquakeFeedCategory, List<EarthquakeEvent>> _mapFeedEvents =
+      <EarthquakeFeedCategory, List<EarthquakeEvent>>{
+        EarthquakeFeedCategory.latest: <EarthquakeEvent>[],
+        EarthquakeFeedCategory.strong: <EarthquakeEvent>[],
+        EarthquakeFeedCategory.felt: <EarthquakeEvent>[],
+      };
   RiskResult? _riskResult;
   double? _distanceKm;
+  String? _mapFeedErrorMessage;
   String? _errorMessage;
 
   Stream<EmergencyAlertPayload> get alertStream => _alertController.stream;
   bool get isInitializing => _isInitializing;
   bool get isLoadingHome => _isLoadingHome;
+  bool get isLoadingMapFeed => _isLoadingMapFeed;
   bool get isSendingMessage => _isSendingMessage;
   bool get hasUnreadNotifications => _hasUnreadNotifications;
   int get selectedTab => _selectedTab;
+  EarthquakeFeedCategory get selectedMapFeed => _selectedMapFeed;
   ThemeMode get themeMode => _themeMode;
   List<ChatMessage> get messages => List<ChatMessage>.unmodifiable(_messages);
   List<String> get nearbyReports => List<String>.unmodifiable(_nearbyReports);
   EarthquakeEvent? get latestEvent => _latestEvent;
   List<EarthquakeEvent> get recentEvents =>
       List<EarthquakeEvent>.unmodifiable(_recentEvents);
+  List<EarthquakeEvent> get mapFeedEvents => List<EarthquakeEvent>.unmodifiable(
+    _mapFeedEvents[_selectedMapFeed] ?? <EarthquakeEvent>[],
+  );
   RiskResult? get riskResult => _riskResult;
   double? get distanceKm => _distanceKm;
+  String? get mapFeedErrorMessage => _mapFeedErrorMessage;
   String? get errorMessage => _errorMessage;
   double get radiusKm => _radiusKm;
 
@@ -148,7 +199,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final events = await _apiClient.getEarthquakeEvents(limit: 100);
+      final events = await _apiClient.getEarthquakeEvents(
+        limit: 200,
+        feed: EarthquakeFeedCategory.felt.feedParam,
+      );
       if (events.isEmpty) {
         _latestEvent = null;
         _recentEvents = <EarthquakeEvent>[];
@@ -186,6 +240,7 @@ class AppState extends ChangeNotifier {
       _latestEvent = event;
       _distanceKm = distance;
       _riskResult = risk;
+      _mapFeedEvents[EarthquakeFeedCategory.felt] = events;
       _prependReport(
         'M${event.magnitude.toStringAsFixed(1)} ${event.wilayah} '
         '(${distance.toStringAsFixed(0)} km)',
@@ -194,6 +249,41 @@ class AppState extends ChangeNotifier {
       _errorMessage = 'Gagal memuat data gempa: $error';
     } finally {
       _isLoadingHome = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMapFeed({
+    EarthquakeFeedCategory? feed,
+    bool forceRefresh = false,
+  }) async {
+    final targetFeed = feed ?? _selectedMapFeed;
+    _selectedMapFeed = targetFeed;
+    final cached = _mapFeedEvents[targetFeed] ?? <EarthquakeEvent>[];
+    if (!forceRefresh && cached.isNotEmpty) {
+      _mapFeedErrorMessage = null;
+      notifyListeners();
+      return;
+    }
+
+    _isLoadingMapFeed = true;
+    _mapFeedErrorMessage = null;
+    notifyListeners();
+
+    try {
+      final events = await _apiClient.getEarthquakeEvents(
+        limit: targetFeed.defaultLimit,
+        feed: targetFeed.feedParam,
+      );
+      _mapFeedEvents[targetFeed] = events;
+      if (targetFeed == EarthquakeFeedCategory.felt) {
+        _recentEvents = events;
+      }
+    } catch (error) {
+      _mapFeedErrorMessage = 'Gagal memuat data peta: $error';
+      _mapFeedEvents[targetFeed] = <EarthquakeEvent>[];
+    } finally {
+      _isLoadingMapFeed = false;
       notifyListeners();
     }
   }
@@ -251,10 +341,7 @@ class AppState extends ChangeNotifier {
 
     try {
       final start = _messages.length > 12 ? _messages.length - 12 : 0;
-      final history = _messages
-          .skip(start)
-          .map((m) => m.toJson())
-          .toList();
+      final history = _messages.skip(start).map((m) => m.toJson()).toList();
 
       final reply = await _apiClient.sendChat(
         message: trimmed,
@@ -399,10 +486,7 @@ class AppState extends ChangeNotifier {
 }
 
 class _NearbyEvent {
-  _NearbyEvent({
-    required this.event,
-    required this.distanceKm,
-  });
+  _NearbyEvent({required this.event, required this.distanceKm});
 
   final EarthquakeEvent event;
   final double distanceKm;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -26,31 +28,108 @@ Alignment _anchorForDot({
   );
 }
 
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  final MapController _mapController = MapController();
+  bool _didLoadInitial = false;
+  int? _focusedEventIndex;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didLoadInitial) {
+      return;
+    }
+    _didLoadInitial = true;
+    unawaited(_loadFeed(context.read<AppState>().selectedMapFeed));
+  }
+
+  Future<void> _loadFeed(
+    EarthquakeFeedCategory feed, {
+    bool forceRefresh = false,
+  }) async {
+    final appState = context.read<AppState>();
+    if (mounted) {
+      setState(() {
+        _focusedEventIndex = null;
+      });
+    }
+    await appState.loadMapFeed(feed: feed, forceRefresh: forceRefresh);
+    final events = appState.mapFeedEvents;
+    if (events.isNotEmpty) {
+      _focusEvent(events, 0, zoom: 5.2);
+    }
+  }
+
+  void _focusEvent(
+    List<EarthquakeEvent> events,
+    int index, {
+    double zoom = 6.1,
+  }) {
+    if (index < 0 || index >= events.length) {
+      return;
+    }
+    final event = events[index];
+    _mapController.move(LatLng(event.eqLat, event.eqLng), zoom);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _focusedEventIndex = index;
+    });
+  }
+
+  EarthquakeEvent? _focusedEvent(List<EarthquakeEvent> events) {
+    final index = _focusedEventIndex;
+    if (index == null || index < 0 || index >= events.length) {
+      return null;
+    }
+    return events[index];
+  }
+
+  String _feedDescription(EarthquakeFeedCategory feed) {
+    switch (feed) {
+      case EarthquakeFeedCategory.latest:
+        return 'Sumber: autogempa.json (1 event terbaru).';
+      case EarthquakeFeedCategory.strong:
+        return 'Sumber: gempaterkini.json (M 5.0+).';
+      case EarthquakeFeedCategory.felt:
+        return 'Sumber: gempadirasakan.json (event dirasakan).';
+    }
+  }
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    return '${_two(local.day)}/${_two(local.month)}/${local.year} ${_two(local.hour)}:${_two(local.minute)}';
+  }
+
+  String _two(int value) => value.toString().padLeft(2, '0');
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, _) {
-        final fallbackEvent = appState.latestEvent;
-        final List<EarthquakeEvent> events = appState.recentEvents.isNotEmpty
-            ? appState.recentEvents
-            : (fallbackEvent == null
-                ? <EarthquakeEvent>[]
-                : <EarthquakeEvent>[fallbackEvent]);
+        final events = appState.mapFeedEvents;
         final latestEvent = events.isEmpty ? null : events.first;
+        final focusedEvent = _focusedEvent(events) ?? latestEvent;
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final userLatLng = LatLng(appState.userLat, appState.userLng);
-        final latestEventLatLng = latestEvent == null
+        final focusLatLng = focusedEvent == null
             ? null
-            : LatLng(latestEvent.eqLat, latestEvent.eqLng);
-        final impactRadiusKm = latestEvent == null
+            : LatLng(focusedEvent.eqLat, focusedEvent.eqLng);
+        final impactRadiusKm = focusedEvent == null
             ? null
             : estimateImpactRadiusKm(
-                magnitude: latestEvent.magnitude,
-                depthKm: latestEvent.depthKm,
+                magnitude: focusedEvent.magnitude,
+                depthKm: focusedEvent.depthKm,
               );
+
         final markers = <Marker>[
           Marker(
             point: userLatLng,
@@ -72,9 +151,13 @@ class MapScreen extends StatelessWidget {
           ...events.asMap().entries.map((entry) {
             final index = entry.key;
             final event = entry.value;
-            final color = index == 0 ? AppTheme.primary : Colors.orange;
-            final icon = index == 0 ? Icons.bolt : Icons.location_on;
-            final label = index == 0
+            final isFocused = index == _focusedEventIndex;
+            final isPrimary = index == 0;
+            final color = isFocused
+                ? Colors.lightBlueAccent
+                : (isPrimary ? AppTheme.primary : Colors.orange);
+            final icon = isPrimary ? Icons.bolt : Icons.location_on;
+            final label = isPrimary
                 ? 'Terbaru M${event.magnitude.toStringAsFixed(1)}'
                 : 'M${event.magnitude.toStringAsFixed(1)}';
             return Marker(
@@ -95,10 +178,11 @@ class MapScreen extends StatelessWidget {
             );
           }),
         ];
+
         final circles = <CircleMarker>[
-          if (latestEventLatLng != null && impactRadiusKm != null)
+          if (focusLatLng != null && impactRadiusKm != null)
             CircleMarker(
-              point: latestEventLatLng,
+              point: focusLatLng,
               radius: impactRadiusKm * 1000,
               useRadiusInMeter: true,
               color: AppTheme.primary.withOpacity(0.18),
@@ -113,17 +197,58 @@ class MapScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: <Widget>[
-                Text(
-                  'Peta Gempa',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'Peta Gempa',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Refresh data kategori ini',
+                      onPressed: appState.isLoadingMapFeed
+                          ? null
+                          : () => unawaited(
+                                _loadFeed(
+                                  appState.selectedMapFeed,
+                                  forceRefresh: true,
+                                ),
+                              ),
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Visualisasi lokasi Anda dan titik gempa dari feed BMKG aktif.',
+                  'Pilih kategori gempa BMKG lalu tap item di daftar untuk fokus ke titik pada peta.',
                   style: TextStyle(
                     color: Theme.of(context).hintColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: EarthquakeFeedCategory.values
+                      .map(
+                        (feed) => ChoiceChip(
+                          label: Text(feed.label),
+                          selected: appState.selectedMapFeed == feed,
+                          onSelected: (_) => unawaited(_loadFeed(feed)),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _feedDescription(appState.selectedMapFeed),
+                  style: TextStyle(
+                    color: Theme.of(context).hintColor,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -140,9 +265,10 @@ class MapScreen extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: FlutterMap(
+                      mapController: _mapController,
                       options: MapOptions(
-                        initialCenter: latestEventLatLng ?? userLatLng,
-                        initialZoom: latestEventLatLng == null ? 6.0 : 5.0,
+                        initialCenter: focusLatLng ?? userLatLng,
+                        initialZoom: focusLatLng == null ? 6.0 : 5.0,
                         interactionOptions: const InteractionOptions(
                           flags: InteractiveFlag.drag |
                               InteractiveFlag.pinchZoom |
@@ -161,12 +287,124 @@ class MapScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                if (latestEvent != null)
+                if (appState.mapFeedErrorMessage != null) ...<Widget>[
+                  const SizedBox(height: 10),
                   Text(
-                    'Menampilkan ${events.length} titik. Terbaru: ${latestEvent.wilayah}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    appState.mapFeedErrorMessage!,
+                    style: const TextStyle(
+                      color: Colors.orange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                ],
+                if (appState.isLoadingMapFeed && events.isEmpty) ...<Widget>[
+                  const SizedBox(height: 12),
+                  const Center(
+                    child: CircularProgressIndicator(color: AppTheme.primary),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Text(
+                  'Daftar Lokasi Gempa',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                if (events.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: isDark ? AppTheme.surfaceDark : Colors.white,
+                      border: Border.all(
+                        color: isDark ? Colors.white10 : Colors.black12,
+                      ),
+                    ),
+                    child: Text(
+                      appState.isLoadingMapFeed
+                          ? 'Memuat data gempa...'
+                          : 'Belum ada data gempa pada kategori ini.',
+                      style: TextStyle(
+                        color: Theme.of(context).hintColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  ...events.take(40).toList().asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final event = entry.value;
+                    final isFocused = index == _focusedEventIndex;
+                    final subtitle =
+                        'M${event.magnitude.toStringAsFixed(1)} | ${event.depthKm.toStringAsFixed(0)} km | ${_formatDateTime(event.dateTime)}';
+                    return InkWell(
+                      onTap: () => _focusEvent(events, index),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: isFocused
+                              ? AppTheme.primary.withOpacity(0.12)
+                              : (isDark ? AppTheme.surfaceDark : Colors.white),
+                          border: Border.all(
+                            color: isFocused
+                                ? AppTheme.primary
+                                : (isDark ? Colors.white10 : Colors.black12),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Icon(
+                              index == 0 ? Icons.bolt : Icons.place,
+                              color: index == 0 ? AppTheme.primary : Colors.orange,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    event.wilayah,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context).hintColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if ((event.dirasakan ?? '').trim().isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        'Dirasakan: ${event.dirasakan}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Theme.of(context).hintColor,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
