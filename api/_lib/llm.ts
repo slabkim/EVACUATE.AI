@@ -392,6 +392,16 @@ function isCasualQuestion(message: string): boolean {
 
 function isDisasterScope(message: string): boolean {
   const text = message.toLowerCase();
+
+  // Allow identity/chatbot questions
+  if (
+    /\b(siapa|who|apa|what|kamu|you|bot|ai|pembuat|creator|kreator|dibuat|made|evacuate)\b/i.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+
   const keywords = [
     "gempa",
     "guncang",
@@ -440,7 +450,18 @@ function isDisasterScope(message: string): boolean {
     "angin kencang",
     "puting beliung",
   ];
-  return keywords.some((keyword) => text.includes(keyword)) || isGreeting(text);
+
+  // If contains disaster keywords or is a greeting, allow
+  if (keywords.some((keyword) => text.includes(keyword)) || isGreeting(text)) {
+    return true;
+  }
+
+  // Allow any question (don't be too strict) - questions are likely genuine
+  if (message.trim().endsWith("?") && message.length > 5) {
+    return true;
+  }
+
+  return false;
 }
 
 function isLatestEventQuery(message: string): boolean {
