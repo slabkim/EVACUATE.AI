@@ -31,7 +31,7 @@ Tambahkan variable berikut pada project Vercel:
 - `GEMINI_API_KEY` (opsional, provider utama)
 - `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
 - `GROQ_API_KEY` (opsional, fallback jika Gemini gagal)
-- `GROQ_MODEL` (opsional, default `llama-3.1-70b-versatile`)
+- `GROQ_MODEL` (opsional, default `llama-3.3-70b-versatile`)
 
 Catatan:
 

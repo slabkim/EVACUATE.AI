@@ -271,7 +271,7 @@ async function requestGroq(
     throw new Error("GROQ_API_KEY tidak tersedia.");
   }
 
-  const model = (readEnv("GROQ_MODEL") || "llama-3.1-70b-versatile").trim();
+  const model = (readEnv("GROQ_MODEL") || "llama-3.3-70b-versatile").trim();
   const url = "https://api.groq.com/openai/v1/chat/completions";
 
   const messages: Array<{
