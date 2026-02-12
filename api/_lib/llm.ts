@@ -104,45 +104,16 @@ export async function generateEarthquakeReply(
     return forecastFallbackReply(messageLower, input);
   }
 
-  // 7) LLM (Gemini atau OpenAI dengan fallback)
-  try {
-    let llmResponse: string;
-
-    // Try Gemini first if available
-    if (readEnv("GEMINI_API_KEY")) {
-      try {
-        llmResponse = await requestGemini(systemPrompt, input);
-        return enforceReplyFormat(llmResponse);
-      } catch (geminiError) {
-        console.error(
-          "Gemini request failed, trying OpenAI fallback",
-          geminiError,
-        );
-
-        // Fallback to OpenAI if Gemini fails
-        if (readEnv("OPENAI_API_KEY")) {
-          try {
-            llmResponse = await requestOpenAI(systemPrompt, input);
-            return enforceReplyFormat(llmResponse);
-          } catch (openaiError) {
-            console.error("OpenAI fallback also failed", openaiError);
-            throw openaiError;
-          }
-        }
-        throw geminiError;
-      }
-    }
-
-    // If Gemini not available, try OpenAI directly
-    if (readEnv("OPENAI_API_KEY")) {
-      llmResponse = await requestOpenAI(systemPrompt, input);
-      return enforceReplyFormat(llmResponse);
-    }
-
-    // No LLM provider available, use fallback
+  // 7) Gemini AI (jika tersedia)
+  if (!readEnv("GEMINI_API_KEY")) {
     return fallbackReply(input);
+  }
+
+  try {
+    const geminiText = await requestGemini(systemPrompt, input);
+    return enforceReplyFormat(geminiText);
   } catch (error) {
-    console.error("All LLM providers failed, using rule-based fallback", error);
+    console.error("Gemini request failed, using rule-based fallback", error);
     return fallbackReply(input);
   }
 }
@@ -258,80 +229,6 @@ async function requestGemini(
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!text) {
     throw new Error("Respon Gemini kosong.");
-  }
-  return text;
-}
-
-/** -------------------- OPENAI -------------------- */
-
-async function requestOpenAI(
-  systemPrompt: string,
-  input: ChatContextInput,
-): Promise<string> {
-  const apiKey = readEnv("OPENAI_API_KEY");
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY tidak tersedia.");
-  }
-
-  const model = (readEnv("OPENAI_MODEL") || "gpt-4o-mini").trim();
-  const url = "https://api.openai.com/v1/chat/completions";
-
-  const messages: Array<{
-    role: "system" | "user" | "assistant";
-    content: string;
-  }> = [
-    {
-      role: "system",
-      content: systemPrompt,
-    },
-  ];
-
-  for (const item of input.history ?? []) {
-    const text = readMessageText(item);
-    if (!text) continue;
-    messages.push({
-      role: item.isUser || item.role === "user" ? "user" : "assistant",
-      content: text,
-    });
-  }
-
-  messages.push({
-    role: "user",
-    content: input.message,
-  });
-
-  const body = {
-    model,
-    messages,
-    temperature: 0.2,
-    max_tokens: 450,
-  };
-
-  const response = await fetchWithRetry(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const detail = await safeReadBody(response);
-    throw new Error(`OpenAI error ${response.status}: ${detail}`);
-  }
-
-  const result = (await response.json()) as {
-    choices?: Array<{
-      message?: {
-        content?: string;
-      };
-    }>;
-  };
-
-  const text = result.choices?.[0]?.message?.content?.trim();
-  if (!text) {
-    throw new Error("Respon OpenAI kosong.");
   }
   return text;
 }
