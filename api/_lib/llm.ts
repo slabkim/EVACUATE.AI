@@ -24,13 +24,21 @@ export async function generateEarthquakeReply(
     return outOfScopeReply();
   }
 
+  if (isLatestEventQuery(message)) {
+    const quickReply = formatLatestEventReply(input);
+    if (quickReply) {
+      return quickReply;
+    }
+  }
+
   if (!process.env.GEMINI_API_KEY) {
     return fallbackReply(input);
   }
 
   try {
     return await requestGemini(systemPrompt, input);
-  } catch (_) {
+  } catch (error) {
+    console.error('Gemini request failed', error);
     return fallbackReply(input);
   }
 }
@@ -211,4 +219,100 @@ function isDisasterScope(message: string): boolean {
 
 function outOfScopeReply(): string {
   return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
+}
+
+function isLatestEventQuery(message: string): boolean {
+  const text = message.toLowerCase();
+  if (!text.includes('gempa')) {
+    return false;
+  }
+  const keywords = [
+    'terbaru',
+    'terkini',
+    'terakhir',
+    'paling baru',
+    'update',
+    'lokasi',
+    'wilayah',
+    'di mana',
+    'dimana',
+    'pusat',
+    'episentrum',
+    'epicenter',
+    'hiposentrum',
+  ];
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function formatLatestEventReply(input: ChatContextInput): string | null {
+  const event = input.latestEarthquake;
+  if (!event || typeof event !== 'object') {
+    return null;
+  }
+
+  const record = event as Record<string, unknown>;
+  const magnitude = readNumber(record.magnitude);
+  const depthKm = readNumber(record.depthKm);
+  const wilayah = readString(record.wilayah, 'Wilayah tidak diketahui');
+  const dateTime = formatDateTime(readString(record.dateTime, ''));
+  const lat = readNumber(record.eqLat);
+  const lng = readNumber(record.eqLng);
+  const potensi = readString(record.potensi);
+  const dirasakan = readString(record.dirasakan);
+
+  const parts: string[] = [];
+  const magnitudeText = magnitude == null ? '-' : magnitude.toFixed(1);
+  const depthText = depthKm == null ? '-' : depthKm.toFixed(0);
+  parts.push(`Gempa terbaru: M${magnitudeText} kedalaman ${depthText} km di ${wilayah}.`);
+  if (dateTime) {
+    parts.push(`Waktu: ${dateTime}.`);
+  }
+  if (
+    lat != null &&
+    lng != null &&
+    !(Number.isFinite(lat) && Number.isFinite(lng) && lat === 0 && lng === 0)
+  ) {
+    parts.push(`Koordinat: ${lat.toFixed(2)}, ${lng.toFixed(2)}.`);
+  }
+  if (potensi) {
+    parts.push(`Potensi: ${potensi}.`);
+  }
+  if (dirasakan) {
+    parts.push(`Dirasakan: ${dirasakan}.`);
+  }
+  parts.push('Pantau info resmi BMKG/BPBD untuk pembaruan.');
+  return parts.join(' ');
+}
+
+function readNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function readString(value: unknown, fallback = ''): string {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  return fallback;
+}
+
+function formatDateTime(value: string): string {
+  if (!value) {
+    return '';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    hour12: false,
+  });
 }
