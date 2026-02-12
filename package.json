@@ -5,6 +5,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "fast-xml-parser": "^4.4.1",
     "firebase-admin": "^12.7.0"
   },
   "devDependencies": {

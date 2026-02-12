@@ -1,3 +1,5 @@
+import { fetchNowcastForLocation, type NowcastAlert } from './nowcast';
+
 interface ChatHistoryItem {
   text?: string;
   message?: string;
@@ -26,6 +28,21 @@ export async function generateEarthquakeReply(
 
   if (!isDisasterScope(message)) {
     return outOfScopeReply();
+  }
+
+  if (shouldCheckNowcast(message)) {
+    const location = extractLocationFromMessage(message) ?? input.userLocation?.label ?? '';
+    if (location) {
+      try {
+        const alert = await fetchNowcastForLocation(location);
+        if (alert) {
+          return formatNowcastReply(alert, location);
+        }
+        return formatNoNowcastReply(location);
+      } catch (error) {
+        console.error('Nowcast fetch failed', error);
+      }
+    }
   }
 
   if (isLatestEventQuery(message)) {
@@ -243,6 +260,61 @@ function outOfScopeReply(): string {
   return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/banjir/kebakaran/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
 }
 
+function shouldCheckNowcast(message: string): boolean {
+  const text = message.toLowerCase();
+  if (!isFloodQuery(text) && !text.includes('hujan') && !text.includes('cuaca')) {
+    return false;
+  }
+  return (
+    text.includes('hari ini') ||
+    text.includes('sekarang') ||
+    text.includes('terkini') ||
+    text.includes('saat ini') ||
+    text.includes('pagi ini') ||
+    text.includes('siang ini') ||
+    text.includes('sore ini') ||
+    text.includes('malam ini')
+  );
+}
+
+function extractLocationFromMessage(message: string): string | null {
+  const text = message.toLowerCase();
+  const match = text.match(
+    /\b(?:di|daerah|wilayah|kecamatan|kelurahan|kota|kabupaten)\s+([a-z0-9\s\-.,]+)/i,
+  );
+  if (!match || !match[1]) {
+    return null;
+  }
+  let location = match[1]
+    .replace(/[?!.]/g, ' ')
+    .replace(/\b(hari ini|sekarang|saat ini|terkini|potensi|banjir|gempa|tsunami|kebakaran|longsor)\b/g, ' ')
+    .trim();
+  location = location.replace(/\s{2,}/g, ' ');
+  if (location.length < 4) {
+    return null;
+  }
+  return location;
+}
+
+function formatNowcastReply(alert: NowcastAlert, location: string): string {
+  const headline = alert.headline || alert.event || 'Peringatan dini cuaca BMKG';
+  const windowText = formatAlertWindow(alert.effective, alert.expires);
+  const description = alert.description ? summarizeDescription(alert.description) : '';
+  const parts = [
+    `${headline}.`,
+    windowText,
+    description,
+    `Lokasi yang ditanyakan: ${location}.`,
+    'Potensi banjir bisa meningkat jika hujan lebat atau ekstrem. Pantau kondisi lokal dan ikuti instruksi BPBD.',
+    'Sumber: BMKG Peringatan Dini Cuaca.',
+  ];
+  return parts.filter(Boolean).join(' ');
+}
+
+function formatNoNowcastReply(location: string): string {
+  return `Saat ini tidak ada peringatan dini cuaca BMKG yang aktif untuk ${location}. Ini bukan jaminan bebas banjir; tetap pantau hujan lokal dan info resmi BPBD/BMKG. Sumber: BMKG Peringatan Dini Cuaca.`;
+}
+
 function isCasualQuestion(message: string): boolean {
   const text = message.toLowerCase().trim();
   const patterns = [
@@ -436,4 +508,27 @@ function formatDateTime(value: string): string {
     timeZone: 'Asia/Jakarta',
     hour12: false,
   });
+}
+
+function formatAlertWindow(effective?: string, expires?: string): string {
+  const start = effective ? formatDateTime(effective) : '';
+  const end = expires ? formatDateTime(expires) : '';
+  if (start && end) {
+    return `Berlaku ${start} hingga ${end}.`;
+  }
+  if (start) {
+    return `Mulai ${start}.`;
+  }
+  if (end) {
+    return `Berlaku hingga ${end}.`;
+  }
+  return '';
+}
+
+function summarizeDescription(text: string): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= 260) {
+    return cleaned;
+  }
+  return `${cleaned.slice(0, 257)}...`;
 }
