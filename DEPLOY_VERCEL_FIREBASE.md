@@ -111,9 +111,13 @@ Tambahkan di Vercel Project Settings -> Environment Variables:
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
 - `CRON_SECRET`
-- `BMKG_URL` (opsional, default BMKG autogempa)
+- `BMKG_FEED` (opsional: `autogempa` | `m5` | `dirasakan`, default `autogempa`)
+- `BMKG_URL` (opsional, override langsung endpoint BMKG apa pun)
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
+
+Catatan:
+- Jika `BMKG_URL` diisi, nilai ini diprioritaskan dibanding `BMKG_FEED`.
 
 ### 4.3 Deploy
 

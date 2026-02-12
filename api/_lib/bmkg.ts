@@ -9,11 +9,16 @@ export interface LatestEarthquakeEvent {
   dirasakan?: string;
 }
 
-const DEFAULT_BMKG_URL =
-  'https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json';
+type BmkgFeed = 'autogempa' | 'm5' | 'dirasakan';
+
+const BMKG_FEED_URL: Record<BmkgFeed, string> = {
+  autogempa: 'https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json',
+  m5: 'https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json',
+  dirasakan: 'https://data.bmkg.go.id/DataMKG/TEWS/gempadirasakan.json',
+};
 
 export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
-  const url = process.env.BMKG_URL?.trim() || DEFAULT_BMKG_URL;
+  const url = resolveBmkgUrl();
   const response = await fetch(url, {
     headers: {
       accept: 'application/json',
@@ -24,11 +29,7 @@ export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
   }
 
   const payload = (await response.json()) as Record<string, unknown>;
-  const gempa = (((payload.Infogempa as Record<string, unknown> | undefined)
-    ?.gempa ?? {}) as Record<string, unknown>);
-  if (Object.keys(gempa).length === 0) {
-    throw new Error('Format data BMKG tidak dikenali.');
-  }
+  const gempa = pickLatestGempa(payload);
 
   const coordinatesText = (gempa.Coordinates as string | undefined) ?? '';
   let [eqLat, eqLng] = parseCoordinates(coordinatesText);
@@ -51,6 +52,58 @@ export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
     potensi: gempa.Potensi ? `${gempa.Potensi}` : undefined,
     dirasakan: gempa.Dirasakan ? `${gempa.Dirasakan}` : undefined,
   };
+}
+
+function resolveBmkgUrl(): string {
+  const customUrl = process.env.BMKG_URL?.trim();
+  if (customUrl) {
+    return customUrl;
+  }
+  const feed = resolveBmkgFeed();
+  return BMKG_FEED_URL[feed];
+}
+
+function resolveBmkgFeed(): BmkgFeed {
+  const raw = process.env.BMKG_FEED?.trim().toLowerCase() ?? '';
+  if (raw === 'm5' || raw === 'm5+' || raw === '5+' || raw === '5.0+' || raw === 'gempaterkini') {
+    return 'm5';
+  }
+  if (raw === 'dirasakan' || raw === 'gempadirasakan') {
+    return 'dirasakan';
+  }
+  if (
+    raw === 'autogempa' ||
+    raw === 'latest' ||
+    raw === 'terkini' ||
+    raw === 'realtime' ||
+    raw === 'real-time'
+  ) {
+    return 'autogempa';
+  }
+  return 'autogempa';
+}
+
+function pickLatestGempa(payload: Record<string, unknown>): Record<string, unknown> {
+  const infoGempa = payload.Infogempa;
+  if (!isRecord(infoGempa)) {
+    throw new Error('Format data BMKG tidak dikenali (Infogempa tidak ada).');
+  }
+  const gempaNode = infoGempa.gempa;
+  if (Array.isArray(gempaNode)) {
+    const first = gempaNode.find((item) => isRecord(item));
+    if (!first) {
+      throw new Error('Data BMKG gempa kosong.');
+    }
+    return first;
+  }
+  if (isRecord(gempaNode)) {
+    return gempaNode;
+  }
+  throw new Error('Format data BMKG tidak dikenali (field gempa invalid).');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function parseDateTime(value?: string): string {
