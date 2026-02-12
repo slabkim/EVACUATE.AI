@@ -31,7 +31,9 @@ export async function generateEarthquakeReply(
   }
 
   if (shouldCheckNowcast(message)) {
-    const location = extractLocationFromMessage(message) ?? input.userLocation?.label ?? '';
+    const location =
+      extractLocationFromMessage(message) ??
+      readString(input.userLocation?.label, '');
     if (location) {
       try {
         const alert = await fetchNowcastForLocation(location);
