@@ -64,8 +64,16 @@ function resolveBmkgUrl(): string {
 }
 
 function resolveBmkgFeed(): BmkgFeed {
-  const raw = process.env.BMKG_FEED?.trim().toLowerCase() ?? '';
-  if (raw === 'm5' || raw === 'm5+' || raw === '5+' || raw === '5.0+' || raw === 'gempaterkini') {
+  const raw = normalizeEnvValue(process.env.BMKG_FEED);
+  if (
+    raw === 'm5' ||
+    raw === 'm5+' ||
+    raw === '5+' ||
+    raw === '5.0+' ||
+    raw === 'm 5,0+' ||
+    raw === 'm 5.0+' ||
+    raw === 'gempaterkini'
+  ) {
     return 'm5';
   }
   if (raw === 'dirasakan' || raw === 'gempadirasakan') {
@@ -81,6 +89,17 @@ function resolveBmkgFeed(): BmkgFeed {
     return 'autogempa';
   }
   return 'autogempa';
+}
+
+function normalizeEnvValue(value: string | undefined): string {
+  if (!value) {
+    return '';
+  }
+  return value
+    .trim()
+    .replace(/^['"]+/, '')
+    .replace(/['"]+$/, '')
+    .toLowerCase();
 }
 
 function pickLatestGempa(payload: Record<string, unknown>): Record<string, unknown> {

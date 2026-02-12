@@ -118,6 +118,8 @@ Tambahkan di Vercel Project Settings -> Environment Variables:
 
 Catatan:
 - Jika `BMKG_URL` diisi, nilai ini diprioritaskan dibanding `BMKG_FEED`.
+- Isi `BMKG_FEED` tanpa kutip, contoh: `dirasakan`.
+- Jika ingin memakai `BMKG_FEED`, kosongkan/hapus `BMKG_URL`.
 
 ### 4.3 Deploy
 

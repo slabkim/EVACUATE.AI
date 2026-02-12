@@ -33,6 +33,8 @@ Tambahkan variable berikut pada project Vercel:
 
 Catatan:
 - Jika `BMKG_URL` diisi, nilai ini diprioritaskan dibanding `BMKG_FEED`.
+- Isi `BMKG_FEED` tanpa kutip, contoh: `dirasakan`.
+- Jika ingin memakai `BMKG_FEED`, kosongkan/hapus `BMKG_URL`.
 
 ## Menjalankan Flutter
 
