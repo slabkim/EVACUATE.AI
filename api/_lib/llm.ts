@@ -104,16 +104,43 @@ export async function generateEarthquakeReply(
     return forecastFallbackReply(messageLower, input);
   }
 
-  // 7) Gemini AI (jika tersedia)
-  if (!readEnv("GEMINI_API_KEY")) {
-    return fallbackReply(input);
-  }
-
+  // 7) AI Providers dengan fallback cascade: Gemini → Groq → Rule-based
   try {
-    const geminiText = await requestGemini(systemPrompt, input);
-    return enforceReplyFormat(geminiText);
+    // Try Gemini first if available
+    if (readEnv("GEMINI_API_KEY")) {
+      try {
+        const geminiText = await requestGemini(systemPrompt, input);
+        return enforceReplyFormat(geminiText);
+      } catch (geminiError) {
+        console.error(
+          "Gemini request failed, trying Groq fallback",
+          geminiError,
+        );
+
+        // Fallback to Groq if Gemini fails
+        if (readEnv("GROQ_API_KEY")) {
+          try {
+            const groqText = await requestGroq(systemPrompt, input);
+            return enforceReplyFormat(groqText);
+          } catch (groqError) {
+            console.error("Groq fallback also failed", groqError);
+            throw groqError;
+          }
+        }
+        throw geminiError;
+      }
+    }
+
+    // If Gemini not available, try Groq directly
+    if (readEnv("GROQ_API_KEY")) {
+      const groqText = await requestGroq(systemPrompt, input);
+      return enforceReplyFormat(groqText);
+    }
+
+    // No AI provider available, use rule-based fallback
+    return fallbackReply(input);
   } catch (error) {
-    console.error("Gemini request failed, using rule-based fallback", error);
+    console.error("All AI providers failed, using rule-based fallback", error);
     return fallbackReply(input);
   }
 }
@@ -229,6 +256,80 @@ async function requestGemini(
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!text) {
     throw new Error("Respon Gemini kosong.");
+  }
+  return text;
+}
+
+/** -------------------- GROQ -------------------- */
+
+async function requestGroq(
+  systemPrompt: string,
+  input: ChatContextInput,
+): Promise<string> {
+  const apiKey = readEnv("GROQ_API_KEY");
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY tidak tersedia.");
+  }
+
+  const model = (readEnv("GROQ_MODEL") || "llama-3.1-70b-versatile").trim();
+  const url = "https://api.groq.com/openai/v1/chat/completions";
+
+  const messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }> = [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+  ];
+
+  for (const item of input.history ?? []) {
+    const text = readMessageText(item);
+    if (!text) continue;
+    messages.push({
+      role: item.isUser || item.role === "user" ? "user" : "assistant",
+      content: text,
+    });
+  }
+
+  messages.push({
+    role: "user",
+    content: input.message,
+  });
+
+  const body = {
+    model,
+    messages,
+    temperature: 0.2,
+    max_tokens: 450,
+  };
+
+  const response = await fetchWithRetry(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const detail = await safeReadBody(response);
+    throw new Error(`Groq error ${response.status}: ${detail}`);
+  }
+
+  const result = (await response.json()) as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  };
+
+  const text = result.choices?.[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error("Respon Groq kosong.");
   }
   return text;
 }
