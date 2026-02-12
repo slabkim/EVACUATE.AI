@@ -28,10 +28,13 @@ Tambahkan variable berikut pada project Vercel:
 - `CRON_SECRET`
 - `BMKG_FEED` (opsional: `autogempa` | `m5` | `dirasakan`, default `autogempa`)
 - `BMKG_URL` (opsional, override langsung endpoint BMKG apa pun)
-- `GEMINI_API_KEY`
+- `GEMINI_API_KEY` (opsional, provider utama)
 - `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
+- `OPENAI_API_KEY` (opsional, fallback jika Gemini gagal)
+- `OPENAI_MODEL` (opsional, default `gpt-4o-mini`)
 
 Catatan:
+
 - Jika `BMKG_URL` diisi, nilai ini diprioritaskan dibanding `BMKG_FEED`.
 - Isi `BMKG_FEED` tanpa kutip, contoh: `dirasakan`.
 - Jika ingin memakai `BMKG_FEED`, kosongkan/hapus `BMKG_URL`.
