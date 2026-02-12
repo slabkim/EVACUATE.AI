@@ -204,6 +204,18 @@ async function requestGemini(
     parts: Array<{ text: string }>;
   }> = [];
 
+  // Add system instruction as first user message (v1 API format)
+  historyContents.push({
+    role: "user",
+    parts: [{ text: systemPrompt }],
+  });
+
+  // Add AI acknowledgment (pretend it received the instructions)
+  historyContents.push({
+    role: "model",
+    parts: [{ text: "Understood. I will follow these instructions." }],
+  });
+
   for (const item of input.history ?? []) {
     const text = readMessageText(item);
     if (!text) continue;
@@ -214,10 +226,6 @@ async function requestGemini(
   }
 
   const body = {
-    systemInstruction: {
-      role: "system",
-      parts: [{ text: systemPrompt }],
-    },
     contents: [
       ...historyContents,
       {
