@@ -28,6 +28,7 @@ Tambahkan variable berikut pada project Vercel:
 - `CRON_SECRET`
 - `BMKG_URL` (opsional, default BMKG autogempa)
 - `GEMINI_API_KEY`
+- `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
 
 ## Menjalankan Flutter
 

@@ -76,8 +76,8 @@ async function requestGemini(
     throw new Error('GEMINI_API_KEY tidak tersedia.');
   }
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const model = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const historyContents: Array<{
     role: 'user' | 'model';
@@ -112,16 +112,18 @@ async function requestGemini(
     },
   };
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    throw new Error(`Gemini error ${response.status}`);
+    const detail = await safeReadBody(response);
+    throw new Error(`Gemini error ${response.status}: ${detail}`);
   }
   const result = (await response.json()) as {
     candidates?: Array<{
@@ -219,6 +221,73 @@ function isDisasterScope(message: string): boolean {
 
 function outOfScopeReply(): string {
   return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  attempts = 3,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url, init, 15000);
+      if (response.ok) {
+        return response;
+      }
+      if (isRetryableStatus(response.status) && attempt < attempts - 1) {
+        await sleep(backoffDelay(attempt));
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await sleep(backoffDelay(attempt));
+        continue;
+      }
+    }
+  }
+  throw lastError ?? new Error('Gemini request failed.');
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status === 500 || status === 503 || status === 504;
+}
+
+function backoffDelay(attempt: number): number {
+  const base = 400 * Math.pow(2, attempt);
+  const jitter = Math.floor(Math.random() * 200);
+  return base + jitter;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function safeReadBody(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch (_) {
+    return '';
+  }
 }
 
 function isLatestEventQuery(message: string): boolean {

@@ -113,6 +113,7 @@ Tambahkan di Vercel Project Settings -> Environment Variables:
 - `CRON_SECRET`
 - `BMKG_URL` (opsional, default BMKG autogempa)
 - `GEMINI_API_KEY`
+- `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
 
 ### 4.3 Deploy
 
