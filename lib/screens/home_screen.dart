@@ -1,8 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/impact_radius.dart';
+
+const double _miniMarkerHeight = 46;
+const double _miniDotSize = 6;
+
+Alignment _anchorForDot({
+  required double width,
+  required double height,
+  required double dotSize,
+}) {
+  return Marker.computePixelAlignment(
+    width: width,
+    height: height,
+    left: width / 2,
+    top: height - (dotSize / 2),
+  );
+}
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -47,6 +66,13 @@ class HomeScreen extends StatelessWidget {
                           userLabel: appState.locationLabel,
                           eventLabel: event?.wilayah ?? 'Menunggu data lokasi gempa',
                           isDark: isDark,
+                          onTapFullMap: () => appState.setSelectedTab(1),
+                          userLat: appState.userLat,
+                          userLng: appState.userLng,
+                          eventLat: event?.eqLat,
+                          eventLng: event?.eqLng,
+                          eventMagnitude: event?.magnitude,
+                          eventDepthKm: event?.depthKm,
                         ),
                         const SizedBox(height: 16),
                         _StatistikGempa(
@@ -311,14 +337,83 @@ class _SectionPeta extends StatelessWidget {
     required this.userLabel,
     required this.eventLabel,
     required this.isDark,
+    required this.onTapFullMap,
+    required this.userLat,
+    required this.userLng,
+    required this.eventLat,
+    required this.eventLng,
+    required this.eventMagnitude,
+    required this.eventDepthKm,
   });
 
   final String userLabel;
   final String eventLabel;
   final bool isDark;
+  final VoidCallback onTapFullMap;
+  final double userLat;
+  final double userLng;
+  final double? eventLat;
+  final double? eventLng;
+  final double? eventMagnitude;
+  final double? eventDepthKm;
 
   @override
   Widget build(BuildContext context) {
+    final userLatLng = LatLng(userLat, userLng);
+    final eventLatLng =
+        (eventLat == null || eventLng == null) ? null : LatLng(eventLat!, eventLng!);
+    final impactRadiusKm =
+        (eventLatLng == null || eventMagnitude == null || eventDepthKm == null)
+            ? null
+            : estimateImpactRadiusKm(
+                magnitude: eventMagnitude!,
+                depthKm: eventDepthKm!,
+              );
+    final markers = <Marker>[
+      Marker(
+        point: userLatLng,
+        width: 120,
+        height: _miniMarkerHeight,
+        alignment: _anchorForDot(
+          width: 120,
+          height: _miniMarkerHeight,
+          dotSize: _miniDotSize,
+        ),
+        child: const _MiniPin(
+          color: Colors.blueAccent,
+          label: 'Anda',
+          dotSize: _miniDotSize,
+        ),
+      ),
+      if (eventLatLng != null)
+        Marker(
+          point: eventLatLng,
+          width: 140,
+          height: _miniMarkerHeight,
+          alignment: _anchorForDot(
+            width: 140,
+            height: _miniMarkerHeight,
+            dotSize: _miniDotSize,
+          ),
+          child: const _MiniPin(
+            color: AppTheme.primary,
+            label: 'Episentrum',
+            dotSize: _miniDotSize,
+          ),
+        ),
+    ];
+    final circles = <CircleMarker>[
+      if (eventLatLng != null && impactRadiusKm != null)
+        CircleMarker(
+          point: eventLatLng,
+          radius: impactRadiusKm * 1000,
+          useRadiusInMeter: true,
+          color: AppTheme.primary.withOpacity(0.16),
+          borderColor: AppTheme.primary.withOpacity(0.5),
+          borderStrokeWidth: 1.5,
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -331,12 +426,19 @@ class _SectionPeta extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const Text(
-              'Lihat peta penuh',
-              style: TextStyle(
-                color: AppTheme.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+            InkWell(
+              onTap: onTapFullMap,
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Text(
+                  'Lihat peta penuh',
+                  style: TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ],
@@ -348,83 +450,61 @@ class _SectionPeta extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
-            gradient: LinearGradient(
-              colors: isDark
-                  ? <Color>[const Color(0xFF2F2023), const Color(0xFF1E1215)]
-                  : <Color>[const Color(0xFFEDEBEB), const Color(0xFFD7D2D2)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
           ),
-          child: Stack(
-            children: <Widget>[
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _GridPainter(
-                      color: isDark ? const Color(0x33EC1337) : const Color(0x22EC1337),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: <Widget>[
+                FlutterMap(
+                  options: MapOptions(
+                    initialCenter: eventLatLng ?? userLatLng,
+                    initialZoom: eventLatLng == null ? 5.2 : 5.0,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.none,
+                    ),
+                  ),
+                  children: <Widget>[
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.evacuateai',
+                    ),
+                    if (circles.isNotEmpty) CircleLayer(circles: circles),
+                    MarkerLayer(markers: markers),
+                  ],
+                ),
+                Positioned(
+                  left: 10,
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.black.withOpacity(0.45)
+                          : Colors.white.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark ? Colors.white10 : Colors.black12,
+                      ),
+                    ),
+                    child: Text(
+                      '$userLabel -> $eventLabel',
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black87,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                top: 70,
-                left: 110,
-                child: Column(
-                  children: <Widget>[
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _TagPeta(text: 'Anda'),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: 90,
-                right: 95,
-                child: Column(
-                  children: <Widget>[
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.bolt,
-                        color: AppTheme.primary,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _TagPeta(text: 'Episentrum'),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 10,
-                right: 10,
-                bottom: 10,
-                child: Text(
-                  '$userLabel -> $eventLabel',
-                  style: TextStyle(
-                    color: isDark ? Colors.white70 : Colors.black87,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -432,56 +512,55 @@ class _SectionPeta extends StatelessWidget {
   }
 }
 
-class _TagPeta extends StatelessWidget {
-  const _TagPeta({required this.text});
+class _MiniPin extends StatelessWidget {
+  const _MiniPin({
+    required this.color,
+    required this.label,
+    required this.dotSize,
+  });
 
-  final String text;
+  final Color color;
+  final String label;
+  final double dotSize;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xCC221013) : const Color(0xCCFFFFFF),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: AppTheme.primary,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
+    return SizedBox.expand(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xCC221013) : const Color(0xCCFFFFFF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              width: dotSize,
+              height: dotSize,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.2),
+              ),
+            ),
+          ],
         ),
       ),
     );
-  }
-}
-
-class _GridPainter extends CustomPainter {
-  _GridPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 0.8;
-    const gap = 18.0;
-    for (double x = 0; x < size.width; x += gap) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += gap) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GridPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
 

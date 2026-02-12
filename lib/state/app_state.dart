@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/chat_message.dart';
@@ -131,6 +132,7 @@ class AppState extends ChangeNotifier {
       case TargetPlatform.fuchsia:
         return 'fuchsia';
     }
+    return 'unknown';
   }
 
   Future<void> refreshDashboard() async {

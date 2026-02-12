@@ -18,6 +18,11 @@ export async function generateEarthquakeReply(
   input: ChatContextInput,
 ): Promise<string> {
   const systemPrompt = buildSystemPrompt(input);
+  const message = input.message ?? '';
+
+  if (!isDisasterScope(message)) {
+    return outOfScopeReply();
+  }
 
   try {
     if (process.env.GEMINI_API_KEY) {
@@ -52,7 +57,7 @@ function buildSystemPrompt(input: ChatContextInput): string {
     'Jawab ringkas, praktis, berbentuk langkah bernomor saat relevan.',
     'Jika informasi tidak pasti, katakan jujur dan arahkan ke sumber resmi BMKG/BPBD.',
     'Jika pengguna menyebut anak, lansia, gedung bertingkat, cedera, atau kebakaran, berikan saran spesifik kondisi tersebut.',
-    'Jangan membahas topik di luar keselamatan darurat.',
+    'Jika pertanyaan di luar konteks bencana, tolak dengan sopan dan minta kembali ke topik bencana.',
     contextText,
   ].join('\n');
 }
@@ -187,6 +192,12 @@ function readMessageText(item: ChatHistoryItem): string {
 
 function fallbackReply(input: ChatContextInput): string {
   const message = input.message.toLowerCase();
+  if (!isDisasterScope(message)) {
+    return outOfScopeReply();
+  }
+  if (isGreeting(message)) {
+    return 'Halo. Saya AI Darurat EVACUATE.AI. Silakan jelaskan kondisi terkait gempa yang sedang Anda alami, misalnya lokasi, guncangan, atau kebutuhan bantuan.';
+  }
   if (message.includes('tsunami')) {
     return 'Untuk potensi tsunami, ikuti peringatan resmi BMKG. Jika Anda di pesisir dan ada peringatan, segera evakuasi ke tempat lebih tinggi melalui jalur resmi.';
   }
@@ -201,4 +212,60 @@ function fallbackReply(input: ChatContextInput): string {
     return 'Jika berada di gedung bertingkat: 1) Jatuhkan diri. 2) Lindungi kepala dan leher. 3) Bertahan sampai guncangan berhenti. 4) Jauhi kaca dan jangan gunakan lift. 5) Evakuasi lewat tangga darurat setelah aman.';
   }
   return 'Tetap tenang. Lakukan Jatuhkan Diri, Lindungi Kepala, dan Bertahan. Setelah guncangan berhenti, evakuasi tertib, jauhi bangunan retak, dan pantau informasi resmi BMKG/BPBD.';
+}
+
+function isGreeting(message: string): boolean {
+  const text = message.trim().toLowerCase();
+  return (
+    text == 'halo' ||
+    text == 'hai' ||
+    text == 'hello' ||
+    text == 'hi' ||
+    text == 'assalamualaikum' ||
+    text == 'assalamu’alaikum' ||
+    text == 'assalamu alaikum'
+  );
+}
+
+function isDisasterScope(message: string): boolean {
+  const text = message.toLowerCase();
+  const keywords = [
+    'gempa',
+    'guncang',
+    'magnitude',
+    'magnitudo',
+    'kedalaman',
+    'episentrum',
+    'hiposentrum',
+    'seismik',
+    'tsunami',
+    'evakuasi',
+    'jalur evakuasi',
+    'titik kumpul',
+    'posko',
+    'pengungsian',
+    'bpbd',
+    'bmkg',
+    'darurat',
+    'bencana',
+    'korban',
+    'cedera',
+    'luka',
+    'p3k',
+    'ambulans',
+    'kebakaran',
+    'retak',
+    'runtuh',
+    'listrik',
+    'gas',
+    'aftershock',
+    'gempa susulan',
+    'banjir',
+    'longsor',
+  ];
+  return keywords.any((keyword) => text.contains(keyword)) || isGreeting(text);
+}
+
+function outOfScopeReply(): string {
+  return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
 }

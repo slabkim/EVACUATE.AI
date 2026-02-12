@@ -57,6 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return Consumer<AppState>(
       builder: (context, appState, _) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
+        final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
@@ -81,10 +82,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     },
                   ),
                 ),
-                _ChipsCepat(
-                  prompts: _quickPrompts,
-                  onTap: (prompt) => _send(appState, prompt),
-                ),
+                if (!isKeyboardOpen)
+                  _ChipsCepat(
+                    prompts: _quickPrompts,
+                    onTap: (prompt) => _send(appState, prompt),
+                  ),
                 _InputPesan(
                   controller: _controller,
                   onSend: () => _send(appState, _controller.text),
