@@ -127,6 +127,7 @@ Lakukan deploy dari Vercel UI (atau push commit baru).
 
 Endpoint utama setelah deploy:
 - `GET /api/bmkg/latest`
+- `GET /api/bmkg/list?limit=20`
 - `POST /api/device/register`
 - `POST /api/risk/score`
 - `POST /api/chat`

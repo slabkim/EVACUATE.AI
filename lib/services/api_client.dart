@@ -30,6 +30,30 @@ class ApiClient {
     return EarthquakeEvent.fromJson(data['event'] as Map<String, dynamic>);
   }
 
+  Future<List<EarthquakeEvent>> getEarthquakeEvents({int limit = 20}) async {
+    final safeLimit = limit <= 0 ? 20 : limit;
+    final response = await _client
+        .get(_uri('/api/bmkg/list?limit=$safeLimit'))
+        .timeout(const Duration(seconds: 15));
+    final data = _decode(response);
+    final rawEvents = data['events'];
+    if (rawEvents is! List) {
+      throw ApiException('Format daftar gempa tidak valid.');
+    }
+
+    final events = <EarthquakeEvent>[];
+    for (final item in rawEvents) {
+      if (item is Map) {
+        events.add(
+          EarthquakeEvent.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        );
+      }
+    }
+    return List<EarthquakeEvent>.unmodifiable(events);
+  }
+
   Future<RiskResult> scoreRisk({
     required double userLat,
     required double userLng,

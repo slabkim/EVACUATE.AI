@@ -10,6 +10,13 @@ export interface LatestEarthquakeEvent {
 }
 
 type BmkgFeed = 'autogempa' | 'm5' | 'dirasakan';
+type BmkgResolvedFeed = BmkgFeed | 'custom';
+
+export interface BmkgRuntimeInfo {
+  feed: BmkgResolvedFeed;
+  url: string;
+  resolvedBy: 'BMKG_FEED' | 'BMKG_URL';
+}
 
 const BMKG_FEED_URL: Record<BmkgFeed, string> = {
   autogempa: 'https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json',
@@ -18,7 +25,28 @@ const BMKG_FEED_URL: Record<BmkgFeed, string> = {
 };
 
 export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
-  const url = resolveBmkgUrl();
+  const events = await fetchEarthquakeEvents(1);
+  const latest = events[0];
+  if (!latest) {
+    throw new Error('Data BMKG gempa kosong.');
+  }
+  return latest;
+}
+
+export async function fetchEarthquakeEvents(
+  limit = 20,
+): Promise<LatestEarthquakeEvent[]> {
+  const gempaRecords = await fetchGempaRecords();
+  const events = gempaRecords.map((gempa) => mapGempaRecordToEvent(gempa));
+  const safeLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.floor(limit))
+      : 20;
+  return events.slice(0, safeLimit);
+}
+
+async function fetchGempaRecords(): Promise<Array<Record<string, unknown>>> {
+  const runtime = getBmkgRuntimeInfo();
+  const url = runtime.url;
   const response = await fetch(url, {
     headers: {
       accept: 'application/json',
@@ -29,8 +57,10 @@ export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
   }
 
   const payload = (await response.json()) as Record<string, unknown>;
-  const gempa = pickLatestGempa(payload);
+  return pickGempaRecords(payload);
+}
 
+function mapGempaRecordToEvent(gempa: Record<string, unknown>): LatestEarthquakeEvent {
   const coordinatesText = (gempa.Coordinates as string | undefined) ?? '';
   let [eqLat, eqLng] = parseCoordinates(coordinatesText);
   if (eqLat === 0 && eqLng === 0) {
@@ -54,13 +84,21 @@ export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
   };
 }
 
-function resolveBmkgUrl(): string {
+export function getBmkgRuntimeInfo(): BmkgRuntimeInfo {
   const customUrl = process.env.BMKG_URL?.trim();
   if (customUrl) {
-    return customUrl;
+    return {
+      feed: 'custom',
+      url: customUrl,
+      resolvedBy: 'BMKG_URL',
+    };
   }
   const feed = resolveBmkgFeed();
-  return BMKG_FEED_URL[feed];
+  return {
+    feed,
+    url: BMKG_FEED_URL[feed],
+    resolvedBy: 'BMKG_FEED',
+  };
 }
 
 function resolveBmkgFeed(): BmkgFeed {
@@ -102,21 +140,21 @@ function normalizeEnvValue(value: string | undefined): string {
     .toLowerCase();
 }
 
-function pickLatestGempa(payload: Record<string, unknown>): Record<string, unknown> {
+function pickGempaRecords(payload: Record<string, unknown>): Array<Record<string, unknown>> {
   const infoGempa = payload.Infogempa;
   if (!isRecord(infoGempa)) {
     throw new Error('Format data BMKG tidak dikenali (Infogempa tidak ada).');
   }
   const gempaNode = infoGempa.gempa;
   if (Array.isArray(gempaNode)) {
-    const first = gempaNode.find((item) => isRecord(item));
-    if (!first) {
+    const records = gempaNode.filter((item) => isRecord(item));
+    if (records.length === 0) {
       throw new Error('Data BMKG gempa kosong.');
     }
-    return first;
+    return records;
   }
   if (isRecord(gempaNode)) {
-    return gempaNode;
+    return [gempaNode];
   }
   throw new Error('Format data BMKG tidak dikenali (field gempa invalid).');
 }

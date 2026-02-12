@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../models/earthquake_event.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/impact_radius.dart';
@@ -32,23 +33,23 @@ class MapScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, _) {
-        final event = appState.latestEvent;
+        final fallbackEvent = appState.latestEvent;
+        final List<EarthquakeEvent> events = appState.recentEvents.isNotEmpty
+            ? appState.recentEvents
+            : (fallbackEvent == null
+                ? <EarthquakeEvent>[]
+                : <EarthquakeEvent>[fallbackEvent]);
+        final latestEvent = events.isEmpty ? null : events.first;
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final userLatLng = LatLng(appState.userLat, appState.userLng);
-        final eventLatLng =
-            event == null ? null : LatLng(event.eqLat, event.eqLng);
-        final String eventLabel;
-        if (event == null) {
-          eventLabel = 'Menunggu episentrum';
-        } else {
-          eventLabel =
-              'Episentrum (${event.eqLat.toStringAsFixed(2)}, ${event.eqLng.toStringAsFixed(2)})';
-        }
-        final impactRadiusKm = event == null
+        final latestEventLatLng = latestEvent == null
+            ? null
+            : LatLng(latestEvent.eqLat, latestEvent.eqLng);
+        final impactRadiusKm = latestEvent == null
             ? null
             : estimateImpactRadiusKm(
-                magnitude: event.magnitude,
-                depthKm: event.depthKm,
+                magnitude: latestEvent.magnitude,
+                depthKm: latestEvent.depthKm,
               );
         final markers = <Marker>[
           Marker(
@@ -68,9 +69,16 @@ class MapScreen extends StatelessWidget {
               dotSize: _markerDotSize,
             ),
           ),
-          if (eventLatLng != null)
-            Marker(
-              point: eventLatLng,
+          ...events.asMap().entries.map((entry) {
+            final index = entry.key;
+            final event = entry.value;
+            final color = index == 0 ? AppTheme.primary : Colors.orange;
+            final icon = index == 0 ? Icons.bolt : Icons.location_on;
+            final label = index == 0
+                ? 'Terbaru M${event.magnitude.toStringAsFixed(1)}'
+                : 'M${event.magnitude.toStringAsFixed(1)}';
+            return Marker(
+              point: LatLng(event.eqLat, event.eqLng),
               width: _eventMarkerWidth,
               height: _markerHeight,
               alignment: _anchorForDot(
@@ -79,17 +87,18 @@ class MapScreen extends StatelessWidget {
                 dotSize: _markerDotSize,
               ),
               child: _MapPin(
-                color: AppTheme.primary,
-                icon: Icons.bolt,
-                label: eventLabel,
+                color: color,
+                icon: icon,
+                label: label,
                 dotSize: _markerDotSize,
               ),
-            ),
+            );
+          }),
         ];
         final circles = <CircleMarker>[
-          if (eventLatLng != null && impactRadiusKm != null)
+          if (latestEventLatLng != null && impactRadiusKm != null)
             CircleMarker(
-              point: eventLatLng,
+              point: latestEventLatLng,
               radius: impactRadiusKm * 1000,
               useRadiusInMeter: true,
               color: AppTheme.primary.withOpacity(0.18),
@@ -112,7 +121,7 @@ class MapScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Visualisasi lokasi Anda dan episentrum gempa terbaru.',
+                  'Visualisasi lokasi Anda dan titik gempa dari feed BMKG aktif.',
                   style: TextStyle(
                     color: Theme.of(context).hintColor,
                     fontWeight: FontWeight.w600,
@@ -132,8 +141,8 @@ class MapScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     child: FlutterMap(
                       options: MapOptions(
-                        initialCenter: eventLatLng ?? userLatLng,
-                        initialZoom: eventLatLng == null ? 6.0 : 5.0,
+                        initialCenter: latestEventLatLng ?? userLatLng,
+                        initialZoom: latestEventLatLng == null ? 6.0 : 5.0,
                         interactionOptions: const InteractionOptions(
                           flags: InteractiveFlag.drag |
                               InteractiveFlag.pinchZoom |
@@ -153,9 +162,9 @@ class MapScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                if (event != null)
+                if (latestEvent != null)
                   Text(
-                    'Wilayah: ${event.wilayah}',
+                    'Menampilkan ${events.length} titik. Terbaru: ${latestEvent.wilayah}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
               ],

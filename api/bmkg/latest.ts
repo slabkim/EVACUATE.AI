@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-import { fetchLatestEarthquake } from '../_lib/bmkg';
+import { fetchLatestEarthquake, getBmkgRuntimeInfo } from '../_lib/bmkg';
 
 export default async function handler(
   req: VercelRequest,
@@ -12,9 +12,11 @@ export default async function handler(
   }
 
   try {
+    const sourceMeta = getBmkgRuntimeInfo();
     const event = await fetchLatestEarthquake();
     return res.status(200).json({
       source: 'BMKG',
+      sourceMeta,
       event,
     });
   } catch (error) {

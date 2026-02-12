@@ -39,6 +39,7 @@ class AppState extends ChangeNotifier {
 
   UserLocation? _userLocation;
   EarthquakeEvent? _latestEvent;
+  List<EarthquakeEvent> _recentEvents = <EarthquakeEvent>[];
   RiskResult? _riskResult;
   double? _distanceKm;
   String? _errorMessage;
@@ -52,6 +53,8 @@ class AppState extends ChangeNotifier {
   List<ChatMessage> get messages => List<ChatMessage>.unmodifiable(_messages);
   List<String> get nearbyReports => List<String>.unmodifiable(_nearbyReports);
   EarthquakeEvent? get latestEvent => _latestEvent;
+  List<EarthquakeEvent> get recentEvents =>
+      List<EarthquakeEvent>.unmodifiable(_recentEvents);
   RiskResult? get riskResult => _riskResult;
   double? get distanceKm => _distanceKm;
   String? get errorMessage => _errorMessage;
@@ -141,7 +144,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final event = await _apiClient.getLatestEarthquake();
+      final latestEventFuture = _apiClient.getLatestEarthquake();
+      final eventsFuture = _apiClient.getEarthquakeEvents(limit: 20);
+      final event = await latestEventFuture;
+      List<EarthquakeEvent> events;
+      try {
+        events = await eventsFuture;
+      } catch (_) {
+        events = <EarthquakeEvent>[event];
+      }
+      if (events.isEmpty) {
+        events = <EarthquakeEvent>[event];
+      }
       final distance = _locationService.distanceKm(
         fromLat: userLat,
         fromLng: userLng,
@@ -158,6 +172,7 @@ class AppState extends ChangeNotifier {
       );
 
       _latestEvent = event;
+      _recentEvents = events;
       _distanceKm = distance;
       _riskResult = risk;
       _prependReport(
