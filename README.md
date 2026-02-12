@@ -53,3 +53,5 @@ Agar FCM berjalan di aplikasi Flutter, pastikan konfigurasi Firebase mobile suda
 - iOS: `GoogleService-Info.plist`
 
 Tanpa file tersebut, aplikasi tetap bisa dibuka namun fitur push notification tidak aktif.
+p
+p
