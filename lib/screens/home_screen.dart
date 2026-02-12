@@ -47,7 +47,11 @@ class HomeScreen extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 440),
             child: Column(
               children: <Widget>[
-                _HeaderLokasi(label: appState.locationLabel),
+                _HeaderLokasi(
+                  label: appState.locationLabel,
+                  hasUnreadNotifications: appState.hasUnreadNotifications,
+                  onTapNotifications: () => appState.setSelectedTab(3),
+                ),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: appState.refreshDashboard,
@@ -80,13 +84,13 @@ class HomeScreen extends StatelessWidget {
                           depthKm: event?.depthKm,
                           distanceKm: distance,
                         ),
+                        const SizedBox(height: 20),
+                        _LaporanSekitar(reports: appState.nearbyReports),
                         const SizedBox(height: 16),
                         _AksiCepat(
                           onTapChatAi: onTapChatAi,
                           onTapChecklist: onTapChecklist,
                         ),
-                        const SizedBox(height: 20),
-                        _LaporanSekitar(reports: appState.nearbyReports),
                         if (appState.errorMessage != null) ...<Widget>[
                           const SizedBox(height: 12),
                           Text(
@@ -121,9 +125,15 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _HeaderLokasi extends StatelessWidget {
-  const _HeaderLokasi({required this.label});
+  const _HeaderLokasi({
+    required this.label,
+    required this.hasUnreadNotifications,
+    required this.onTapNotifications,
+  });
 
   final String label;
+  final bool hasUnreadNotifications;
+  final VoidCallback onTapNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -160,21 +170,22 @@ class _HeaderLokasi extends StatelessWidget {
           Stack(
             children: <Widget>[
               IconButton(
-                onPressed: () {},
+                onPressed: onTapNotifications,
                 icon: const Icon(Icons.notifications),
               ),
-              Positioned(
-                top: 10,
-                right: 12,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    borderRadius: BorderRadius.circular(999),
+              if (hasUnreadNotifications)
+                Positioned(
+                  top: 10,
+                  right: 12,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ],

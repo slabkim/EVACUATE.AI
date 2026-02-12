@@ -32,8 +32,9 @@ class ApiClient {
 
   Future<List<EarthquakeEvent>> getEarthquakeEvents({int limit = 20}) async {
     final safeLimit = limit <= 0 ? 20 : limit;
+    const feed = 'dirasakan';
     final response = await _client
-        .get(_uri('/api/bmkg/list?limit=$safeLimit'))
+        .get(_uri('/api/bmkg/list?limit=$safeLimit&feed=$feed'))
         .timeout(const Duration(seconds: 15));
     final data = _decode(response);
     final rawEvents = data['events'];

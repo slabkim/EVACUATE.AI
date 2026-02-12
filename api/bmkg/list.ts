@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-import { fetchEarthquakeEvents, getBmkgRuntimeInfo } from '../_lib/bmkg';
+import {
+  fetchEarthquakeEvents,
+  getBmkgRuntimeInfoForFeed,
+  type BmkgFeed,
+} from '../_lib/bmkg';
 
 export default async function handler(
   req: VercelRequest,
@@ -13,8 +17,9 @@ export default async function handler(
 
   try {
     const limit = parseLimit(req.query.limit);
-    const sourceMeta = getBmkgRuntimeInfo();
-    const events = await fetchEarthquakeEvents(limit);
+    const feed = parseFeed(req.query.feed);
+    const sourceMeta = getBmkgRuntimeInfoForFeed(feed);
+    const events = await fetchEarthquakeEvents(limit, feed);
     return res.status(200).json({
       source: 'BMKG',
       sourceMeta,
@@ -36,4 +41,33 @@ function parseLimit(value: string | string[] | undefined): number {
     return 20;
   }
   return Math.min(parsed, 100);
+}
+
+function parseFeed(value: string | string[] | undefined): BmkgFeed | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const raw = (Array.isArray(value) ? value[0] : value).trim().toLowerCase();
+  if (
+    raw === 'm5' ||
+    raw === 'm5+' ||
+    raw === '5+' ||
+    raw === '5.0+' ||
+    raw === 'gempaterkini'
+  ) {
+    return 'm5';
+  }
+  if (raw === 'dirasakan' || raw === 'gempadirasakan') {
+    return 'dirasakan';
+  }
+  if (
+    raw === 'autogempa' ||
+    raw === 'latest' ||
+    raw === 'terkini' ||
+    raw === 'realtime' ||
+    raw === 'real-time'
+  ) {
+    return 'autogempa';
+  }
+  return undefined;
 }

@@ -12,6 +12,8 @@ import '../services/fcm_service.dart';
 import '../services/location_service.dart';
 
 class AppState extends ChangeNotifier {
+  static const double _homeNearbyRadiusKm = 100;
+
   AppState({
     required ApiClient apiClient,
     required LocationService locationService,
@@ -33,6 +35,7 @@ class AppState extends ChangeNotifier {
   bool _isInitializing = false;
   bool _isLoadingHome = false;
   bool _isSendingMessage = false;
+  bool _hasUnreadNotifications = false;
   int _selectedTab = 0;
   ThemeMode _themeMode = ThemeMode.system;
   double _radiusKm = 150;
@@ -48,6 +51,7 @@ class AppState extends ChangeNotifier {
   bool get isInitializing => _isInitializing;
   bool get isLoadingHome => _isLoadingHome;
   bool get isSendingMessage => _isSendingMessage;
+  bool get hasUnreadNotifications => _hasUnreadNotifications;
   int get selectedTab => _selectedTab;
   ThemeMode get themeMode => _themeMode;
   List<ChatMessage> get messages => List<ChatMessage>.unmodifiable(_messages);
@@ -144,24 +148,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final latestEventFuture = _apiClient.getLatestEarthquake();
-      final eventsFuture = _apiClient.getEarthquakeEvents(limit: 20);
-      final event = await latestEventFuture;
-      List<EarthquakeEvent> events;
-      try {
-        events = await eventsFuture;
-      } catch (_) {
-        events = <EarthquakeEvent>[event];
-      }
+      final events = await _apiClient.getEarthquakeEvents(limit: 100);
       if (events.isEmpty) {
-        events = <EarthquakeEvent>[event];
+        _latestEvent = null;
+        _recentEvents = <EarthquakeEvent>[];
+        _distanceKm = null;
+        _riskResult = null;
+        _errorMessage = 'Belum ada data gempa dirasakan dari BMKG.';
+        return;
       }
-      final distance = _locationService.distanceKm(
-        fromLat: userLat,
-        fromLng: userLng,
-        toLat: event.eqLat,
-        toLng: event.eqLng,
+      _recentEvents = events;
+
+      final nearest = _findNearestEventWithinRadius(
+        events: events,
+        maxRadiusKm: _homeNearbyRadiusKm,
       );
+      if (nearest == null) {
+        _latestEvent = null;
+        _distanceKm = null;
+        _riskResult = null;
+        _errorMessage =
+            'Tidak ada gempa dirasakan dalam radius ${_homeNearbyRadiusKm.toStringAsFixed(0)} km dari lokasi Anda.';
+        return;
+      }
+
+      final event = nearest.event;
+      final distance = nearest.distanceKm;
       final risk = await _apiClient.scoreRisk(
         userLat: userLat,
         userLng: userLng,
@@ -172,7 +184,6 @@ class AppState extends ChangeNotifier {
       );
 
       _latestEvent = event;
-      _recentEvents = events;
       _distanceKm = distance;
       _riskResult = risk;
       _prependReport(
@@ -187,11 +198,37 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  _NearbyEvent? _findNearestEventWithinRadius({
+    required List<EarthquakeEvent> events,
+    required double maxRadiusKm,
+  }) {
+    _NearbyEvent? nearest;
+    for (final event in events) {
+      final distance = _locationService.distanceKm(
+        fromLat: userLat,
+        fromLng: userLng,
+        toLat: event.eqLat,
+        toLng: event.eqLng,
+      );
+      if (distance > maxRadiusKm) {
+        continue;
+      }
+      if (nearest == null || distance < nearest.distanceKm) {
+        nearest = _NearbyEvent(event: event, distanceKm: distance);
+      }
+    }
+    return nearest;
+  }
+
   void _prependReport(String report) {
+    final isNewReport = !_nearbyReports.contains(report);
     _nearbyReports.remove(report);
     _nearbyReports.insert(0, report);
     if (_nearbyReports.length > 8) {
       _nearbyReports.removeLast();
+    }
+    if (isNewReport && _initialized && _selectedTab != 3) {
+      _hasUnreadNotifications = true;
     }
   }
 
@@ -278,6 +315,9 @@ class AppState extends ChangeNotifier {
 
   void setSelectedTab(int index) {
     _selectedTab = index;
+    if (index == 3 && _hasUnreadNotifications) {
+      _hasUnreadNotifications = false;
+    }
     notifyListeners();
   }
 
@@ -333,6 +373,10 @@ class AppState extends ChangeNotifier {
       risk: risk,
       distanceKm: _toDouble(data['distanceKm']),
     );
+    if (_selectedTab != 3) {
+      _hasUnreadNotifications = true;
+      notifyListeners();
+    }
     _alertController.add(payload);
   }
 
@@ -352,4 +396,14 @@ class AppState extends ChangeNotifier {
     unawaited(_fcmService.dispose());
     super.dispose();
   }
+}
+
+class _NearbyEvent {
+  _NearbyEvent({
+    required this.event,
+    required this.distanceKm,
+  });
+
+  final EarthquakeEvent event;
+  final double distanceKm;
 }

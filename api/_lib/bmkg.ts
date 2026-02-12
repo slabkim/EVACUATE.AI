@@ -9,7 +9,7 @@ export interface LatestEarthquakeEvent {
   dirasakan?: string;
 }
 
-type BmkgFeed = 'autogempa' | 'm5' | 'dirasakan';
+export type BmkgFeed = 'autogempa' | 'm5' | 'dirasakan';
 type BmkgResolvedFeed = BmkgFeed | 'custom';
 
 export interface BmkgRuntimeInfo {
@@ -35,8 +35,9 @@ export async function fetchLatestEarthquake(): Promise<LatestEarthquakeEvent> {
 
 export async function fetchEarthquakeEvents(
   limit = 20,
+  feed?: BmkgFeed,
 ): Promise<LatestEarthquakeEvent[]> {
-  const gempaRecords = await fetchGempaRecords();
+  const gempaRecords = await fetchGempaRecords(feed);
   const events = gempaRecords.map((gempa) => mapGempaRecordToEvent(gempa));
   const safeLimit = Number.isFinite(limit)
       ? Math.max(1, Math.floor(limit))
@@ -44,8 +45,8 @@ export async function fetchEarthquakeEvents(
   return events.slice(0, safeLimit);
 }
 
-async function fetchGempaRecords(): Promise<Array<Record<string, unknown>>> {
-  const runtime = getBmkgRuntimeInfo();
+async function fetchGempaRecords(feed?: BmkgFeed): Promise<Array<Record<string, unknown>>> {
+  const runtime = getBmkgRuntimeInfoForFeed(feed);
   const url = runtime.url;
   const response = await fetch(url, {
     headers: {
@@ -82,6 +83,17 @@ function mapGempaRecordToEvent(gempa: Record<string, unknown>): LatestEarthquake
     potensi: gempa.Potensi ? `${gempa.Potensi}` : undefined,
     dirasakan: gempa.Dirasakan ? `${gempa.Dirasakan}` : undefined,
   };
+}
+
+export function getBmkgRuntimeInfoForFeed(feed?: BmkgFeed): BmkgRuntimeInfo {
+  if (feed) {
+    return {
+      feed,
+      url: BMKG_FEED_URL[feed],
+      resolvedBy: 'BMKG_FEED',
+    };
+  }
+  return getBmkgRuntimeInfo();
 }
 
 export function getBmkgRuntimeInfo(): BmkgRuntimeInfo {
