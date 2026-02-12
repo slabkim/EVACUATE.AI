@@ -27,6 +27,7 @@ export default async function handler(
   }
 
   try {
+    const isForceTest = parseBooleanQuery(req.query.force);
     const event = await fetchLatestEarthquake();
     const firestore = db();
     const stateRef = firestore.collection('system').doc('earthquake_state');
@@ -35,11 +36,16 @@ export default async function handler(
       | string
       | undefined;
 
-    if (lastProcessedDateTime && lastProcessedDateTime === event.dateTime) {
+    if (
+      !isForceTest &&
+      lastProcessedDateTime &&
+      lastProcessedDateTime === event.dateTime
+    ) {
       return res.status(200).json({
         success: true,
         status: 'tidak_ada_event_baru',
         eventDateTime: event.dateTime,
+        force: false,
       });
     }
 
@@ -74,15 +80,19 @@ export default async function handler(
         depthKm: event.depthKm,
       });
 
-      if (event.magnitude < 5 || risk.distanceKm > device.radiusKm) {
+      if (
+        !isForceTest &&
+        (event.magnitude < 5 || risk.distanceKm > device.radiusKm)
+      ) {
         skipped += 1;
         return;
       }
 
-      const title = 'Peringatan Gempa';
-      const body =
-        `M${event.magnitude.toFixed(1)} - ${event.depthKm.toFixed(0)} km - ` +
-        `~${risk.distanceKm.toFixed(0)} km dari Anda. Buka aplikasi untuk panduan.`;
+      const title = isForceTest ? 'TEST Peringatan Gempa' : 'Peringatan Gempa';
+      const body = isForceTest
+        ? `Uji notifikasi bencana. M${event.magnitude.toFixed(1)} - ${event.wilayah}.`
+        : `M${event.magnitude.toFixed(1)} - ${event.depthKm.toFixed(0)} km - ` +
+          `~${risk.distanceKm.toFixed(0)} km dari Anda. Buka aplikasi untuk panduan.`;
 
       try {
         await sendPushToToken({
@@ -109,21 +119,24 @@ export default async function handler(
 
     await Promise.all(tasks);
 
-    await stateRef.set(
-      {
-        lastProcessedDateTime: event.dateTime,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+    if (!isForceTest) {
+      await stateRef.set(
+        {
+          lastProcessedDateTime: event.dateTime,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
 
     return res.status(200).json({
       success: true,
-      status: 'selesai',
+      status: isForceTest ? 'test_terkirim' : 'selesai',
       scanned,
       sent,
       skipped,
       failed,
+      force: isForceTest,
       eventDateTime: event.dateTime,
       magnitude: event.magnitude,
     });
@@ -166,4 +179,18 @@ function toNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function parseBooleanQuery(value: string | string[] | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  const normalized = raw.trim().toLowerCase();
+  return (
+    normalized === '1' ||
+    normalized === 'true' ||
+    normalized === 'yes' ||
+    normalized === 'y'
+  );
 }

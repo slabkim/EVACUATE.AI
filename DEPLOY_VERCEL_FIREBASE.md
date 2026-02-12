@@ -148,6 +148,12 @@ Tes manual:
 curl -H "x-cron-secret: <CRON_SECRET>" https://<domain-anda>/api/cron/check-bmkg
 ```
 
+Tes notifikasi paksa (untuk QA, abaikan filter magnitudo/radius):
+
+```bash
+curl -H "x-cron-secret: <CRON_SECRET>" "https://<domain-anda>/api/cron/check-bmkg?force=1"
+```
+
 ## 6. Struktur Data Firestore yang Dipakai
 
 Collection/doc yang dipakai backend:

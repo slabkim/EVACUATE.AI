@@ -85,7 +85,7 @@ export async function generateEarthquakeReply(
   }
 
   // 7) Gemini (jika tersedia)
-  if (!process.env.GEMINI_API_KEY) {
+  if (!readEnv('GEMINI_API_KEY')) {
     return fallbackReply(input);
   }
 
@@ -144,12 +144,12 @@ async function requestGemini(
   systemPrompt: string,
   input: ChatContextInput,
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = readEnv('GEMINI_API_KEY');
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY tidak tersedia.');
   }
 
-  const model = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
+  const model = (readEnv('GEMINI_MODEL') || 'gemini-1.5-flash').trim();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const historyContents: Array<{
@@ -824,6 +824,17 @@ function readString(value: unknown, fallback = ''): string {
     return value.trim();
   }
   return fallback;
+}
+
+function readEnv(key: string): string | undefined {
+  const env = (globalThis as { process?: { env?: Record<string, unknown> } })
+    .process?.env;
+  const value = env?.[key];
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function formatDateTime(value: string): string {
