@@ -58,11 +58,12 @@ function buildSystemPrompt(input: ChatContextInput): string {
   return [
     'Anda adalah AI Darurat EVACUATE.AI.',
     'WAJIB menjawab hanya dalam Bahasa Indonesia.',
-    'Fokus eksklusif pada panduan keselamatan GEMPA.',
+    'Fokus pada panduan keselamatan bencana (gempa, tsunami, banjir, kebakaran, longsor, dll).',
     'Jawab ringkas, praktis, berbentuk langkah bernomor saat relevan.',
     'Jika informasi tidak pasti, katakan jujur dan arahkan ke sumber resmi BMKG/BPBD.',
     'Jika pengguna menyebut anak, lansia, gedung bertingkat, cedera, atau kebakaran, berikan saran spesifik kondisi tersebut.',
     'Jika pertanyaan di luar konteks bencana, tolak dengan sopan dan minta kembali ke topik bencana.',
+    'Jika jenis bencana tidak jelas, ajukan satu pertanyaan klarifikasi singkat.',
     contextText,
   ].join('\n');
 }
@@ -149,10 +150,19 @@ function fallbackReply(input: ChatContextInput): string {
     return outOfScopeReply();
   }
   if (isGreeting(message)) {
-    return 'Halo. Saya AI Darurat EVACUATE.AI. Silakan jelaskan kondisi terkait gempa yang sedang Anda alami, misalnya lokasi, guncangan, atau kebutuhan bantuan.';
+    return 'Halo. Saya AI Darurat EVACUATE.AI. Silakan jelaskan kondisi terkait bencana yang sedang Anda alami, misalnya lokasi, jenis bencana, dan kebutuhan bantuan.';
   }
   if (message.includes('tsunami')) {
-    return 'Untuk potensi tsunami, ikuti peringatan resmi BMKG. Jika Anda di pesisir dan ada peringatan, segera evakuasi ke tempat lebih tinggi melalui jalur resmi.';
+    return 'Untuk potensi tsunami: 1) Segera evakuasi ke tempat lebih tinggi. 2) Ikuti jalur evakuasi resmi. 3) Jauhi pantai dan muara sungai. 4) Pantau peringatan resmi BMKG/BPBD.';
+  }
+  if (isFloodQuery(message)) {
+    return 'Jika terjadi banjir: 1) Matikan listrik dan gas bila aman. 2) Pindah ke tempat lebih tinggi. 3) Hindari arus deras dan kabel listrik. 4) Bawa dokumen penting dalam plastik kedap air. 5) Ikuti instruksi evakuasi BPBD.';
+  }
+  if (isFireQuery(message)) {
+    return 'Jika terjadi kebakaran: 1) Aktifkan alarm dan evakuasi segera. 2) Jangan gunakan lift. 3) Merunduk untuk hindari asap. 4) Tutup pintu di belakang Anda. 5) Hubungi 112 atau pemadam setempat.';
+  }
+  if (isLandslideQuery(message)) {
+    return 'Jika terjadi longsor: 1) Menjauh dari lereng/tebing. 2) Evakuasi ke area terbuka yang lebih aman. 3) Waspadai longsor susulan terutama saat hujan. 4) Ikuti arahan BPBD setempat.';
   }
   if (message.includes('cedera')) {
     return 'Jika ada cedera: 1) Hentikan perdarahan dengan penekanan kain bersih. 2) Jangan memindahkan korban dengan dugaan cedera tulang belakang. 3) Hubungi 112 atau layanan medis terdekat.';
@@ -164,7 +174,7 @@ function fallbackReply(input: ChatContextInput): string {
   ) {
     return 'Jika berada di gedung bertingkat: 1) Jatuhkan diri. 2) Lindungi kepala dan leher. 3) Bertahan sampai guncangan berhenti. 4) Jauhi kaca dan jangan gunakan lift. 5) Evakuasi lewat tangga darurat setelah aman.';
   }
-  return 'Tetap tenang. Lakukan Jatuhkan Diri, Lindungi Kepala, dan Bertahan. Setelah guncangan berhenti, evakuasi tertib, jauhi bangunan retak, dan pantau informasi resmi BMKG/BPBD.';
+  return 'Tetap tenang. Identifikasi jenis bencana, evakuasi jika berbahaya, dan ikuti instruksi resmi BPBD/BMKG. Jika Anda jelaskan jenis bencana dan lokasi, saya bisa memberi langkah yang lebih tepat.';
 }
 
 function isGreeting(message: string): boolean {
@@ -215,12 +225,18 @@ function isDisasterScope(message: string): boolean {
     'gempa susulan',
     'banjir',
     'longsor',
+    'kebakaran',
+    'api',
+    'asap',
+    'erupsi',
+    'gunung',
+    'letusan',
   ];
   return keywords.some((keyword) => text.includes(keyword)) || isGreeting(text);
 }
 
 function outOfScopeReply(): string {
-  return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
+  return 'Maaf, saya hanya melayani pertanyaan terkait bencana (gempa/tsunami/banjir/kebakaran/evakuasi/keselamatan). Silakan ajukan pertanyaan dalam konteks kejadian bencana.';
 }
 
 async function fetchWithRetry(
@@ -311,6 +327,18 @@ function isLatestEventQuery(message: string): boolean {
     'hiposentrum',
   ];
   return keywords.some((keyword) => text.includes(keyword));
+}
+
+function isFloodQuery(message: string): boolean {
+  return message.includes('banjir');
+}
+
+function isFireQuery(message: string): boolean {
+  return message.includes('kebakaran') || message.includes('api') || message.includes('asap');
+}
+
+function isLandslideQuery(message: string): boolean {
+  return message.includes('longsor') || message.includes('tanah bergerak');
 }
 
 function formatLatestEventReply(input: ChatContextInput): string | null {
