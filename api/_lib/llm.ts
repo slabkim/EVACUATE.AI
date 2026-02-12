@@ -206,7 +206,7 @@ function isDisasterScope(message: string): boolean {
     'banjir',
     'longsor',
   ];
-  return keywords.some((keyword) => text.contains(keyword)) || isGreeting(text);
+  return keywords.some((keyword) => text.includes(keyword)) || isGreeting(text);
 }
 
 function outOfScopeReply(): string {
