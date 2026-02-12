@@ -112,8 +112,7 @@ Tambahkan di Vercel Project Settings -> Environment Variables:
 - `FIREBASE_PRIVATE_KEY`
 - `CRON_SECRET`
 - `BMKG_URL` (opsional, default BMKG autogempa)
-- `GEMINI_API_KEY` **atau** `OPENAI_API_KEY`
-- `OPENAI_MODEL` (opsional, default `gpt-4o-mini`)
+- `GEMINI_API_KEY`
 
 ### 4.3 Deploy
 

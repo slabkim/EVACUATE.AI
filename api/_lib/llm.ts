@@ -24,18 +24,15 @@ export async function generateEarthquakeReply(
     return outOfScopeReply();
   }
 
-  try {
-    if (process.env.GEMINI_API_KEY) {
-      return await requestGemini(systemPrompt, input);
-    }
-    if (process.env.OPENAI_API_KEY) {
-      return await requestOpenAi(systemPrompt, input);
-    }
-  } catch (_) {
+  if (!process.env.GEMINI_API_KEY) {
     return fallbackReply(input);
   }
 
-  return fallbackReply(input);
+  try {
+    return await requestGemini(systemPrompt, input);
+  } catch (_) {
+    return fallbackReply(input);
+  }
 }
 
 function buildSystemPrompt(input: ChatContextInput): string {
@@ -128,60 +125,6 @@ async function requestGemini(
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!text) {
     throw new Error('Respon Gemini kosong.');
-  }
-  return text;
-}
-
-async function requestOpenAi(
-  systemPrompt: string,
-  input: ChatContextInput,
-): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY tidak tersedia.');
-  }
-
-  const messages: Array<{
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-  }> = [{ role: 'system', content: systemPrompt }];
-  for (const item of input.history ?? []) {
-    const text = readMessageText(item);
-    if (!text) {
-      continue;
-    }
-    messages.push({
-      role: item.isUser || item.role === 'user' ? 'user' : 'assistant',
-      content: text,
-    });
-  }
-  messages.push({ role: 'user', content: input.message });
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      temperature: 0.2,
-      max_tokens: 350,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI error ${response.status}`);
-  }
-  const result = (await response.json()) as {
-    choices?: Array<{
-      message?: { content?: string };
-    }>;
-  };
-  const text = result.choices?.[0]?.message?.content?.trim();
-  if (!text) {
-    throw new Error('Respon OpenAI kosong.');
   }
   return text;
 }

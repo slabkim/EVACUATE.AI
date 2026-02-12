@@ -27,7 +27,7 @@ Tambahkan variable berikut pada project Vercel:
 - `FIREBASE_PRIVATE_KEY`
 - `CRON_SECRET`
 - `BMKG_URL` (opsional, default BMKG autogempa)
-- `GEMINI_API_KEY` atau `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
 
 ## Menjalankan Flutter
 
