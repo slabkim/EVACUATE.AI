@@ -113,7 +113,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
         });
         sent += 1;
-      } catch (_) {
+      } catch (error: any) {
+        // If token is invalid/expired, delete it from database
+        const errorCode = error?.code || error?.errorInfo?.code || "";
+        if (
+          errorCode === "messaging/invalid-registration-token" ||
+          errorCode === "messaging/registration-token-not-registered"
+        ) {
+          // Token is invalid, remove from database
+          const docId = Buffer.from(device.token)
+            .toString("base64url")
+            .slice(0, 240);
+          await firestore.collection("device_tokens").doc(docId).delete();
+          console.log(`Deleted invalid token: ${docId}`);
+        }
         failed += 1;
       }
     });
