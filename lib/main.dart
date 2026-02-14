@@ -13,9 +13,11 @@ import 'screens/home_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/api_client.dart';
+import 'services/audio_service.dart';
 import 'services/fcm_service.dart';
 import 'services/local_notif_service.dart';
 import 'services/location_service.dart';
+import 'services/preferences_service.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_bottom_nav.dart';
@@ -24,7 +26,22 @@ import 'widgets/app_bottom_nav.dart';
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
-  } catch (_) {}
+    
+    // Handle data-only messages by creating local notification with custom sound
+    final title = message.notification?.title ?? message.data['title'] ?? 'Peringatan Gempa';
+    final body = message.notification?.body ?? message.data['body'] ?? 'Terdapat pembaruan gempa';
+    
+    // Show notification with custom sound
+    final localNotifService = LocalNotifService();
+    await localNotifService.initialize((_) {}); // Empty callback for background
+    await localNotifService.showForegroundNotification(
+      title: title,
+      body: body,
+      payload: message.data,
+    );
+  } catch (e) {
+    print('Background message handler error: $e');
+  }
 }
 
 Future<void> main() async {
@@ -38,16 +55,51 @@ Future<void> main() async {
   runApp(const EvacuateAiApp());
 }
 
-class EvacuateAiApp extends StatelessWidget {
+class EvacuateAiApp extends StatefulWidget {
   const EvacuateAiApp({super.key});
 
   @override
+  State<EvacuateAiApp> createState() => _EvacuateAiAppState();
+}
+
+class _EvacuateAiAppState extends State<EvacuateAiApp> {
+  PreferencesService? _preferencesService;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPreferences();
+  }
+
+  Future<void> _initPreferences() async {
+    final prefs = await PreferencesService.create();
+    if (mounted) {
+      setState(() {
+        _preferencesService = prefs;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_preferencesService == null) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
     return ChangeNotifierProvider<AppState>(
       create: (_) => AppState(
         apiClient: ApiClient(),
         locationService: LocationService(),
         fcmService: FcmService(LocalNotifService()),
+        audioService: AudioService(),
+        preferencesService: _preferencesService!,
       ),
       child: Consumer<AppState>(
         builder: (context, appState, _) {
@@ -103,6 +155,9 @@ class _AppShellState extends State<_AppShell> {
         builder: (_) => EmergencyAlertScreen(payload: payload),
       ),
     );
+    if (mounted) {
+      context.read<AppState>().stopSiren();
+    }
     if (openChat == true && mounted) {
       context.read<AppState>().setSelectedTab(2);
     }

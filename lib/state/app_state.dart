@@ -8,8 +8,10 @@ import '../models/earthquake_event.dart';
 import '../models/emergency_alert_payload.dart';
 import '../models/risk_result.dart';
 import '../services/api_client.dart';
+import '../services/audio_service.dart';
 import '../services/fcm_service.dart';
 import '../services/location_service.dart';
+import '../services/preferences_service.dart';
 
 enum EarthquakeFeedCategory { latest, strong, felt }
 
@@ -48,19 +50,25 @@ extension EarthquakeFeedCategoryX on EarthquakeFeedCategory {
 }
 
 class AppState extends ChangeNotifier {
-  static const double _homeNearbyRadiusKm = 200;
+  static const double _homeNearbyRadiusKm = 500;
 
   AppState({
     required ApiClient apiClient,
     required LocationService locationService,
     required FcmService fcmService,
+    required AudioService audioService,
+    required PreferencesService preferencesService,
   }) : _apiClient = apiClient,
        _locationService = locationService,
-       _fcmService = fcmService;
+       _fcmService = fcmService,
+       _audioService = audioService,
+       _preferencesService = preferencesService;
 
   final ApiClient _apiClient;
   final LocationService _locationService;
   final FcmService _fcmService;
+  final AudioService _audioService;
+  final PreferencesService _preferencesService;
 
   final StreamController<EmergencyAlertPayload> _alertController =
       StreamController<EmergencyAlertPayload>.broadcast();
@@ -139,6 +147,27 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Load saved settings first
+      _radiusKm = _preferencesService.getRadiusKm();
+      _themeMode = _preferencesService.getThemeMode();
+      
+      // Load saved location (fallback if GPS unavailable)
+      try {
+        final savedLocation = _preferencesService.getSavedLocation();
+        if (savedLocation != null) {
+          _userLocation = UserLocation(
+            latitude: savedLocation.latitude,
+            longitude: savedLocation.longitude,
+            label: savedLocation.label,
+          );
+          notifyListeners();
+        }
+      } catch (locationError) {
+        // If saved location is corrupted, just skip it
+        // GPS will provide fresh location
+        print('Failed to load saved location: $locationError');
+      }
+      
       await _fcmService.initialize(onNotificationTap: _handleNotificationTap);
       await _resolveLocation();
       await refreshDashboard();
@@ -155,10 +184,25 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _resolveLocation() async {
-    final location = await _locationService.getCurrentLocation();
-    if (location != null) {
-      _userLocation = location;
-      notifyListeners();
+    try {
+      final location = await _locationService.getCurrentLocation();
+      if (location != null) {
+        _userLocation = location;
+        notifyListeners();
+        
+        // Save location to preferences for future use
+        unawaited(
+          _preferencesService.setLocation(
+            latitude: location.latitude,
+            longitude: location.longitude,
+            label: location.label,
+          ),
+        );
+      }
+    } catch (e) {
+      // If location fails, just continue with saved location
+      // which was already loaded in initialize()
+      print('Failed to resolve location: $e');
     }
   }
 
@@ -167,6 +211,13 @@ class AppState extends ChangeNotifier {
     if (token == null || token.isEmpty) {
       return;
     }
+    
+    // Print FCM token for testing purposes
+    print('═══════════════════════════════════════════════════════');
+    print('📱 FCM TOKEN (Copy untuk test script):');
+    print(token);
+    print('═══════════════════════════════════════════════════════');
+    
     await _apiClient.registerDevice(
       token: token,
       platform: _platformLabel(),
@@ -417,11 +468,13 @@ class AppState extends ChangeNotifier {
       _themeMode = ThemeMode.system;
     }
     notifyListeners();
+    unawaited(_preferencesService.setThemeMode(_themeMode));
   }
 
   void setRadiusKm(double value) {
     _radiusKm = value;
     notifyListeners();
+    unawaited(_preferencesService.setRadiusKm(value));
     unawaited(_registerDevice());
   }
 
@@ -434,6 +487,59 @@ class AppState extends ChangeNotifier {
       risk: _riskResult!,
       distanceKm: _distanceKm ?? 0,
     );
+    if ((_distanceKm ?? 0) <= 100) {
+      unawaited(_audioService.playSiren());
+    }
+    _alertController.add(payload);
+  }
+
+  void stopSiren() {
+    unawaited(_audioService.stopAll());
+  }
+
+  void testEmergencyAlert() {
+    final testEvent = EarthquakeEvent(
+      dateTime: DateTime.now(),
+      magnitude: 6.8,
+      depthKm: 12.0,
+      wilayah: 'Jawa Barat (Simulasi Test)',
+      eqLat: -7.2245,
+      eqLng: 107.9068,
+    );
+
+    final testRisk = RiskResult(
+      riskScore: 85,
+      riskLevel: 'TINGGI',
+      rekomendasi:
+          'TEST: Segera lakukan Jatuhkan Diri, Lindungi Kepala, Bertahan, dan jauhi kaca atau benda berat.',
+    );
+
+    final payload = EmergencyAlertPayload(
+      event: testEvent,
+      risk: testRisk,
+      distanceKm: 28.5,
+    );
+
+    // Show local notification as well
+    unawaited(
+      _fcmService.showLocalNotification(
+        title: '⚠️ PERINGATAN KRITIS (TEST)',
+        body: 'Gempa M 6.8 terdeteksi di Jawa Barat. Segera berlindung!',
+        payload: {
+          'magnitude': 6.8,
+          'depth': 12,
+          'wilayah': 'Jawa Barat (Simulasi Test)',
+          'riskLevel': 'TINGGI',
+          'riskScore': 85,
+          'distanceKm': 28.5,
+          'time': testEvent.dateTime.toIso8601String(),
+          'eqLat': -7.2245,
+          'eqLng': 107.9068,
+        },
+      ),
+    );
+
+    unawaited(_audioService.playSiren());
     _alertController.add(payload);
   }
 
@@ -463,6 +569,9 @@ class AppState extends ChangeNotifier {
     if (_selectedTab != 3) {
       _hasUnreadNotifications = true;
       notifyListeners();
+    }
+    if (_toDouble(data['distanceKm']) <= 100) {
+      unawaited(_audioService.playSiren());
     }
     _alertController.add(payload);
   }

@@ -1,6 +1,6 @@
-import { getMessaging } from 'firebase-admin/messaging';
+import { getMessaging } from "firebase-admin/messaging";
 
-import { db } from './firestore';
+import { db } from "./firestore";
 
 export interface PushMessageInput {
   token: string;
@@ -9,7 +9,9 @@ export interface PushMessageInput {
   data: Record<string, string>;
 }
 
-export async function sendPushToToken(input: PushMessageInput): Promise<string> {
+export async function sendPushToToken(
+  input: PushMessageInput,
+): Promise<string> {
   db();
   return getMessaging().send({
     token: input.token,
@@ -19,15 +21,19 @@ export async function sendPushToToken(input: PushMessageInput): Promise<string> 
     },
     data: input.data,
     android: {
-      priority: 'high',
+      priority: "high",
+      notification: {
+        sound: "sirene",
+        channelId: "evacuate_alert_channel_v3",
+      },
     },
     apns: {
       headers: {
-        'apns-priority': '10',
+        "apns-priority": "10",
       },
       payload: {
         aps: {
-          sound: 'default',
+          sound: "sirene.mp3",
         },
       },
     },

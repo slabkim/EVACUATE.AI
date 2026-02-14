@@ -17,36 +17,54 @@ class UserLocation {
 
 class LocationService {
   Future<UserLocation?> getCurrentLocation() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return null;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+
+      // Add timeout to prevent hanging when GPS is struggling
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          // If timeout, try with lower accuracy
+          return Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+            ),
+          );
+        },
+      );
+
+      final label = await _resolveLocationLabel(
+        position.latitude,
+        position.longitude,
+      );
+
+      return UserLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        label: label,
+      );
+    } catch (e) {
+      // If any error occurs (GPS off, timeout, etc), just return null
+      // App will use saved location from preferences
+      print('Failed to get current location: $e');
       return null;
     }
-
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return null;
-    }
-
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    );
-
-    final label = await _resolveLocationLabel(
-      position.latitude,
-      position.longitude,
-    );
-
-    return UserLocation(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      label: label,
-    );
   }
 
   Future<String> _resolveLocationLabel(double lat, double lng) async {

@@ -1,10 +1,10 @@
-﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { FieldValue } from 'firebase-admin/firestore';
+﻿import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { FieldValue } from "firebase-admin/firestore";
 
-import { fetchLatestEarthquake } from '../_lib/bmkg';
-import { sendPushToToken } from '../_lib/fcm';
-import { db } from '../_lib/firestore';
-import { calculateRisk } from '../_lib/risk';
+import { fetchLatestEarthquake } from "../_lib/bmkg";
+import { sendPushToToken } from "../_lib/fcm";
+import { db } from "../_lib/firestore";
+import { calculateRisk } from "../_lib/risk";
 
 interface DeviceRecord {
   token: string;
@@ -13,28 +13,24 @@ interface DeviceRecord {
   radiusKm: number;
 }
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET');
-    return res.status(405).json({ error: 'Metode tidak diizinkan.' });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ error: "Metode tidak diizinkan." });
   }
 
   if (!isAuthorized(req)) {
-    return res.status(401).json({ error: 'Akses cron tidak sah.' });
+    return res.status(401).json({ error: "Akses cron tidak sah." });
   }
 
   try {
     const isForceTest = parseBooleanQuery(req.query.force);
     const event = await fetchLatestEarthquake();
     const firestore = db();
-    const stateRef = firestore.collection('system').doc('earthquake_state');
+    const stateRef = firestore.collection("system").doc("earthquake_state");
     const stateSnapshot = await stateRef.get();
-    const lastProcessedDateTime = stateSnapshot.data()?.lastProcessedDateTime as
-      | string
-      | undefined;
+    const lastProcessedDateTime = stateSnapshot.data()
+      ?.lastProcessedDateTime as string | undefined;
 
     if (
       !isForceTest &&
@@ -43,17 +39,17 @@ export default async function handler(
     ) {
       return res.status(200).json({
         success: true,
-        status: 'tidak_ada_event_baru',
+        status: "tidak_ada_event_baru",
         eventDateTime: event.dateTime,
         force: false,
       });
     }
 
-    const devicesSnapshot = await firestore.collection('device_tokens').get();
+    const devicesSnapshot = await firestore.collection("device_tokens").get();
     const devices: DeviceRecord[] = devicesSnapshot.docs
       .map((doc) => doc.data() as Partial<DeviceRecord>)
       .map((item) => ({
-        token: `${item.token ?? ''}`.trim(),
+        token: `${item.token ?? ""}`.trim(),
         lat: toNumber(item.lat),
         lng: toNumber(item.lng),
         radiusKm: toNumber(item.radiusKm) || 150,
@@ -80,15 +76,20 @@ export default async function handler(
         depthKm: event.depthKm,
       });
 
-      if (
-        !isForceTest &&
-        (event.magnitude < 5 || risk.distanceKm > device.radiusKm)
-      ) {
+      // Send notification if:
+      // 1. Magnitude >= 5 AND within user's notification radius (significant earthquake)
+      // 2. OR magnitude >= 3 AND within user's notification radius (moderate earthquake nearby)
+      const isSignificant =
+        event.magnitude >= 5.0 && risk.distanceKm <= device.radiusKm;
+      const isNearby =
+        event.magnitude >= 2.0 && risk.distanceKm <= device.radiusKm;
+
+      if (!isForceTest && !isSignificant && !isNearby) {
         skipped += 1;
         return;
       }
 
-      const title = isForceTest ? 'TEST Peringatan Gempa' : 'Peringatan Gempa';
+      const title = isForceTest ? "TEST Peringatan Gempa" : "Peringatan Gempa";
       const body = isForceTest
         ? `Uji notifikasi bencana. M${event.magnitude.toFixed(1)} - ${event.wilayah}.`
         : `M${event.magnitude.toFixed(1)} - ${event.depthKm.toFixed(0)} km - ` +
@@ -131,7 +132,7 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      status: isForceTest ? 'test_terkirim' : 'selesai',
+      status: isForceTest ? "test_terkirim" : "selesai",
       scanned,
       sent,
       skipped,
@@ -142,7 +143,7 @@ export default async function handler(
     });
   } catch (error) {
     return res.status(500).json({
-      error: 'Cron gagal memproses data BMKG.',
+      error: "Cron gagal memproses data BMKG.",
       detail: `${error}`,
     });
   }
@@ -154,27 +155,27 @@ function isAuthorized(req: VercelRequest): boolean {
     return true;
   }
 
-  const headerSecret = normalizeHeader(req.headers['x-cron-secret']);
+  const headerSecret = normalizeHeader(req.headers["x-cron-secret"]);
   const authHeader = normalizeHeader(req.headers.authorization);
-  const bearerSecret = authHeader.startsWith('Bearer ')
+  const bearerSecret = authHeader.startsWith("Bearer ")
     ? authHeader.slice(7)
-    : '';
+    : "";
 
   return headerSecret === expectedSecret || bearerSecret === expectedSecret;
 }
 
 function normalizeHeader(value: string | string[] | undefined): string {
   if (!value) {
-    return '';
+    return "";
   }
   return Array.isArray(value) ? value[0] : value;
 }
 
 function toNumber(value: unknown): number {
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     return value;
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const parsed = Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -188,9 +189,9 @@ function parseBooleanQuery(value: string | string[] | undefined): boolean {
   const raw = Array.isArray(value) ? value[0] : value;
   const normalized = raw.trim().toLowerCase();
   return (
-    normalized === '1' ||
-    normalized === 'true' ||
-    normalized === 'yes' ||
-    normalized === 'y'
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "y"
   );
 }

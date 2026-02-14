@@ -43,12 +43,13 @@ class LocalNotifService {
     Map<String, dynamic>? payload,
   }) async {
     const androidDetails = AndroidNotificationDetails(
-      'evacuate_alert_channel',
+      'evacuate_alert_channel_v3', // New channel ID to force fresh settings
       'Peringatan Gempa',
       channelDescription: 'Notifikasi peringatan gempa EVACUATE.AI',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
+      sound: RawResourceAndroidNotificationSound('sirene'),
       enableVibration: true,
       icon: '@mipmap/ic_launcher',
     );
@@ -57,6 +58,7 @@ class LocalNotifService {
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      sound: 'sirene.mp3',
     );
 
     final details = const NotificationDetails(

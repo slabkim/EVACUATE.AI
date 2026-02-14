@@ -32,10 +32,13 @@ class FcmService {
 
     _foregroundSubscription?.cancel();
     _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
+      // Handle both notification and data-only messages
+      final title = message.notification?.title ?? message.data['title'] ?? 'Peringatan Gempa';
+      final body = message.notification?.body ?? message.data['body'] ?? 'Terdapat pembaruan gempa di sekitar Anda.';
+      
       _localNotifService.showForegroundNotification(
-        title: message.notification?.title ?? 'Peringatan Gempa',
-        body: message.notification?.body ??
-            'Terdapat pembaruan gempa di sekitar Anda.',
+        title: title,
+        body: body,
         payload: message.data,
       );
     });
@@ -51,6 +54,18 @@ class FcmService {
     if (initialMessage != null) {
       onNotificationTap(initialMessage.data);
     }
+  }
+
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? payload,
+  }) async {
+    await _localNotifService.showForegroundNotification(
+      title: title,
+      body: body,
+      payload: payload,
+    );
   }
 
   Future<String?> getToken() async {

@@ -93,6 +93,24 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                _SettingCard(
+                  isDark: isDark,
+                  child: ListTile(
+                    title: const Text(
+                      'Test Peringatan',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text('Simulasi peringatan darurat gempa.'),
+                    trailing: FilledButton(
+                      onPressed: appState.testEmergencyAlert,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                      ),
+                      child: const Text('Test'),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
