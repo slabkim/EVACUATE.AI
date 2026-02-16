@@ -18,8 +18,6 @@ export default async function handler(
     const platform = `${body.platform ?? 'unknown'}`.trim();
     const lat = toNumber(body.lat);
     const lng = toNumber(body.lng);
-    const radiusKmRaw = toNumber(body.radiusKm);
-    const radiusKm = radiusKmRaw > 0 ? radiusKmRaw : 150;
 
     if (!token) {
       return res.status(400).json({ error: 'Token FCM wajib diisi.' });
@@ -35,7 +33,7 @@ export default async function handler(
           platform,
           lat,
           lng,
-          radiusKm,
+          radiusKm: FieldValue.delete(),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },

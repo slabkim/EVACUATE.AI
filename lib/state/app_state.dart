@@ -84,7 +84,6 @@ class AppState extends ChangeNotifier {
   int _selectedTab = 0;
   EarthquakeFeedCategory _selectedMapFeed = EarthquakeFeedCategory.felt;
   ThemeMode _themeMode = ThemeMode.system;
-  double _radiusKm = 150;
 
   UserLocation? _userLocation;
   EarthquakeEvent? _latestEvent;
@@ -121,7 +120,6 @@ class AppState extends ChangeNotifier {
   double? get distanceKm => _distanceKm;
   String? get mapFeedErrorMessage => _mapFeedErrorMessage;
   String? get errorMessage => _errorMessage;
-  double get radiusKm => _radiusKm;
 
   String get locationLabel => _userLocation?.label ?? 'Jakarta Selatan, ID';
   double get userLat => _userLocation?.latitude ?? -6.2088;
@@ -148,7 +146,6 @@ class AppState extends ChangeNotifier {
 
     try {
       // Load saved settings first
-      _radiusKm = _preferencesService.getRadiusKm();
       _themeMode = _preferencesService.getThemeMode();
       
       // Load saved location (fallback if GPS unavailable)
@@ -223,7 +220,6 @@ class AppState extends ChangeNotifier {
       platform: _platformLabel(),
       lat: userLat,
       lng: userLng,
-      radiusKm: _radiusKm,
     );
   }
 
@@ -469,13 +465,6 @@ class AppState extends ChangeNotifier {
     }
     notifyListeners();
     unawaited(_preferencesService.setThemeMode(_themeMode));
-  }
-
-  void setRadiusKm(double value) {
-    _radiusKm = value;
-    notifyListeners();
-    unawaited(_preferencesService.setRadiusKm(value));
-    unawaited(_registerDevice());
   }
 
   void triggerEmergencyFromCurrent() {

@@ -6,7 +6,6 @@ class PreferencesService {
 
   final SharedPreferences? _prefs;
 
-  static const String _keyRadiusKm = 'notification_radius_km';
   static const String _keyThemeMode = 'theme_mode';
   static const String _keyLocationLat = 'user_location_lat';
   static const String _keyLocationLng = 'user_location_lng';
@@ -20,14 +19,6 @@ class PreferencesService {
       // Return a service with null prefs that will use defaults
       return PreferencesService(null);
     }
-  }
-
-  double getRadiusKm() {
-    return _prefs?.getDouble(_keyRadiusKm) ?? 150.0;
-  }
-
-  Future<void> setRadiusKm(double value) async {
-    await _prefs?.setDouble(_keyRadiusKm, value);
   }
 
   ThemeMode getThemeMode() {

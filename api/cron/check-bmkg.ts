@@ -10,8 +10,9 @@ interface DeviceRecord {
   token: string;
   lat: number;
   lng: number;
-  radiusKm: number;
 }
+
+const NOTIFICATION_RADIUS_KM = 200;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
@@ -52,7 +53,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         token: `${item.token ?? ""}`.trim(),
         lat: toNumber(item.lat),
         lng: toNumber(item.lng),
-        radiusKm: toNumber(item.radiusKm) || 150,
       }));
 
     let scanned = 0;
@@ -77,14 +77,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       // Send notification if:
-      // 1. Magnitude >= 5 AND within user's notification radius (significant earthquake)
-      // 2. OR magnitude >= 3 AND within user's notification radius (moderate earthquake nearby)
-      const isSignificant =
-        event.magnitude >= 5.0 && risk.distanceKm <= device.radiusKm;
-      const isNearby =
-        event.magnitude >= 2.0 && risk.distanceKm <= device.radiusKm;
+      // 1. Earthquake is within 200 km from user location (any magnitude)
+      // 2. OR magnitude >= 5.0 (any distance)
+      const isWithinNearbyRadius = risk.distanceKm <= NOTIFICATION_RADIUS_KM;
+      const isStrongEarthquake = event.magnitude >= 5.0;
 
-      if (!isForceTest && !isSignificant && !isNearby) {
+      if (!isForceTest && !isWithinNearbyRadius && !isStrongEarthquake) {
         skipped += 1;
         return;
       }

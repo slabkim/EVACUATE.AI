@@ -95,7 +95,6 @@ class ApiClient {
     required String platform,
     required double lat,
     required double lng,
-    required double radiusKm,
   }) async {
     final response = await _client
         .post(
@@ -109,7 +108,6 @@ class ApiClient {
               'platform': platform,
               'lat': lat,
               'lng': lng,
-              'radiusKm': radiusKm,
             },
           ),
         )

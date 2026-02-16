@@ -51,7 +51,7 @@ class SettingsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         const Text(
-                          'Radius Notifikasi',
+                          'Aturan Notifikasi Gempa',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
@@ -59,20 +59,13 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'Perangkat menerima peringatan dalam ${appState.radiusKm.toStringAsFixed(0)} km.',
+                          'Notifikasi dikirim otomatis jika:\n'
+                          '• Gempa berada dalam radius 200 km dari lokasi Anda.\n'
+                          '• Magnitudo gempa 5.0 atau lebih, tanpa memedulikan jarak.',
                           style: TextStyle(
                             color: Theme.of(context).hintColor,
                             fontSize: 12,
                           ),
-                        ),
-                        Slider(
-                          value: appState.radiusKm,
-                          min: 25,
-                          max: 300,
-                          divisions: 11,
-                          label: '${appState.radiusKm.toStringAsFixed(0)} km',
-                          activeColor: AppTheme.primary,
-                          onChanged: appState.setRadiusKm,
                         ),
                       ],
                     ),
