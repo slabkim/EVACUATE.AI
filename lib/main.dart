@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -25,6 +26,8 @@ import 'widgets/app_bottom_nav.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
+    WidgetsFlutterBinding.ensureInitialized();
+    ui.DartPluginRegistrant.ensureInitialized();
     await Firebase.initializeApp();
     
     // Handle data-only messages by creating local notification with custom sound
@@ -274,3 +277,4 @@ class _ChecklistItem extends StatelessWidget {
     );
   }
 }
+

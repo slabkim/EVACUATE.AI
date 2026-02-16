@@ -15,24 +15,25 @@ export async function sendPushToToken(
   db();
   return getMessaging().send({
     token: input.token,
-    notification: {
+    data: {
+      ...input.data,
       title: input.title,
       body: input.body,
     },
-    data: input.data,
     android: {
       priority: "high",
-      notification: {
-        sound: "sirene",
-        channelId: "evacuate_alert_channel_v3",
-      },
     },
     apns: {
       headers: {
         "apns-priority": "10",
+        "apns-push-type": "alert",
       },
       payload: {
         aps: {
+          alert: {
+            title: input.title,
+            body: input.body,
+          },
           sound: "sirene.mp3",
         },
       },

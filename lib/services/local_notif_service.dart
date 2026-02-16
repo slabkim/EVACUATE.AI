@@ -5,6 +5,11 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 typedef NotificationTapCallback = void Function(Map<String, dynamic> payload);
 
 class LocalNotifService {
+  static const String _alertChannelId = 'evacuate_alert_channel_v3';
+  static const String _alertChannelName = 'Peringatan Gempa';
+  static const String _alertChannelDescription =
+      'Notifikasi peringatan gempa EVACUATE.AI';
+
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
@@ -35,6 +40,22 @@ class LocalNotifService {
         }
       },
     );
+
+    const alertChannel = AndroidNotificationChannel(
+      _alertChannelId,
+      _alertChannelName,
+      description: _alertChannelDescription,
+      importance: Importance.max,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('sirene'),
+      enableVibration: true,
+    );
+
+    final androidPlatform = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await androidPlatform?.createNotificationChannel(alertChannel);
   }
 
   Future<void> showForegroundNotification({
@@ -43,9 +64,9 @@ class LocalNotifService {
     Map<String, dynamic>? payload,
   }) async {
     const androidDetails = AndroidNotificationDetails(
-      'evacuate_alert_channel_v3', // New channel ID to force fresh settings
-      'Peringatan Gempa',
-      channelDescription: 'Notifikasi peringatan gempa EVACUATE.AI',
+      _alertChannelId,
+      _alertChannelName,
+      channelDescription: _alertChannelDescription,
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
