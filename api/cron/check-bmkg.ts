@@ -1,6 +1,7 @@
-﻿import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { FieldValue } from "firebase-admin/firestore";
 
+import type { LatestEarthquakeEvent } from "../_lib/bmkg";
 import { fetchLatestEarthquake } from "../_lib/bmkg";
 import { sendPushToToken } from "../_lib/fcm";
 import { db } from "../_lib/firestore";
@@ -26,7 +27,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const isForceTest = parseBooleanQuery(req.query.force);
-    const event = await fetchLatestEarthquake();
+    const isDummyEvent = parseBooleanQuery(req.query.dummy);
+    const event = isDummyEvent
+      ? buildDummyEvent(req.query)
+      : await fetchLatestEarthquake();
+
     const firestore = db();
     const stateRef = firestore.collection("system").doc("earthquake_state");
     const stateSnapshot = await stateRef.get();
@@ -35,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (
       !isForceTest &&
+      !isDummyEvent &&
       lastProcessedDateTime &&
       lastProcessedDateTime === event.dateTime
     ) {
@@ -43,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         status: "tidak_ada_event_baru",
         eventDateTime: event.dateTime,
         force: false,
+        dummy: false,
       });
     }
 
@@ -82,13 +89,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const isWithinNearbyRadius = risk.distanceKm <= NOTIFICATION_RADIUS_KM;
       const isStrongEarthquake = event.magnitude >= 5.0;
 
-      if (!isForceTest && !isWithinNearbyRadius && !isStrongEarthquake) {
+      if (!isForceTest && !isDummyEvent && !isWithinNearbyRadius && !isStrongEarthquake) {
         skipped += 1;
         return;
       }
 
-      const title = isForceTest ? "TEST Peringatan Gempa" : "Peringatan Gempa";
-      const body = isForceTest
+      const title =
+        isForceTest || isDummyEvent
+          ? "TEST Peringatan Gempa"
+          : "Peringatan Gempa";
+      const body = isForceTest || isDummyEvent
         ? `Uji notifikasi bencana. M${event.magnitude.toFixed(1)} - ${event.wilayah}.`
         : `M${event.magnitude.toFixed(1)} - ${event.depthKm.toFixed(0)} km - ` +
           `~${risk.distanceKm.toFixed(0)} km dari Anda. Buka aplikasi untuk panduan.`;
@@ -131,7 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await Promise.all(tasks);
 
-    if (!isForceTest) {
+    if (!isForceTest && !isDummyEvent) {
       await stateRef.set(
         {
           lastProcessedDateTime: event.dateTime,
@@ -143,14 +153,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       success: true,
-      status: isForceTest ? "test_terkirim" : "selesai",
+      status: isForceTest || isDummyEvent ? "test_terkirim" : "selesai",
       scanned,
       sent,
       skipped,
       failed,
       force: isForceTest,
+      dummy: isDummyEvent,
       eventDateTime: event.dateTime,
       magnitude: event.magnitude,
+      eqLat: event.eqLat,
+      eqLng: event.eqLng,
+      wilayah: event.wilayah,
     });
   } catch (error) {
     return res.status(500).json({
@@ -205,4 +219,59 @@ function parseBooleanQuery(value: string | string[] | undefined): boolean {
     normalized === "yes" ||
     normalized === "y"
   );
+}
+
+function buildDummyEvent(
+  query: VercelRequest["query"],
+): LatestEarthquakeEvent {
+  const magnitude = Math.max(
+    0,
+    Math.min(10, readNumberQuery(query.magnitude ?? query.mag, 6.0)),
+  );
+  const depthKm = Math.max(0, readNumberQuery(query.depthKm ?? query.depth, 10));
+  const eqLat = readNumberQuery(query.eqLat ?? query.lat, -6.2088);
+  const eqLng = readNumberQuery(query.eqLng ?? query.lng, 106.8456);
+  const wilayah =
+    readStringQuery(query.wilayah ?? query.area) || "Simulasi Dummy Event";
+  const dateTime = readDateTimeQuery(query.time ?? query.dateTime);
+
+  return {
+    dateTime,
+    magnitude,
+    depthKm,
+    wilayah,
+    eqLat,
+    eqLng,
+    potensi: "SIMULASI",
+    dirasakan: "SIMULASI",
+  };
+}
+
+function readNumberQuery(
+  value: string | string[] | undefined,
+  fallback: number,
+): number {
+  if (!value) {
+    return fallback;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function readStringQuery(value: string | string[] | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw.trim();
+}
+
+function readDateTimeQuery(value: string | string[] | undefined): string {
+  const raw = readStringQuery(value);
+  if (!raw) {
+    return new Date().toISOString();
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }

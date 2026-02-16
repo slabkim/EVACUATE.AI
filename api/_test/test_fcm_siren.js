@@ -17,14 +17,18 @@ admin.initializeApp({
 
 // REPLACE WITH YOUR ACTUAL FCM DEVICE TOKEN
 const registrationToken =
-    "dsg7kII9QAyRFzhzMorOls:APA91bFygeJMpikGiImZO1OQoylXvxmFE7rucKgzbGtuQwoIRZ78lDNqQSLcpOYCBcligfrNagirA-_IdugQuNL588kOn_im1BNW9nu3KcRkYxMaGP3kKvw";
+    "dBeDDbUoTWi0aDyzKyI-YW:APA91bFmCWafOi-vCvSu9XBLPiBHubGKJUA7d_VMwwdayaji6GNIR4wQyRmtt3PWU7YdZfeYjfoMcFrtv13OPrFug_b4dtgtkpFaz1LlIgfVECsNC2SgzWQ";
 
 const message = {
-    // IMPORTANT: Remove 'notification' field to make this a DATA-ONLY message
-    // This forces the app to handle notification display, ensuring custom sound works
+    // Hybrid payload:
+    // - notification: more reliable for background/terminated app
+    // - data: still used for in-app payload parsing
+    notification: {
+        title: "Peringatan Kritis (REAL FCM)",
+        body: "Gempa Terdeteksi! Cari perlindungan sekarang!",
+    },
     data: {
-        // Data expected by the app to trigger EmergencyAlertScreen
-        title: "🚨 PERINGATAN KRITIS (REAL FCM)",
+        title: "Peringatan Kritis (REAL FCM)",
         body: "Gempa Terdeteksi! Cari perlindungan sekarang!",
         magnitude: "6.8",
         depth: "12",
@@ -38,6 +42,10 @@ const message = {
     },
     android: {
         priority: "high",
+        notification: {
+            channelId: "evacuate_alert_channel_v4",
+            sound: "sirene",
+        },
     },
     token: registrationToken,
 };

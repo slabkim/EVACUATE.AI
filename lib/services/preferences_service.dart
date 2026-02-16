@@ -45,10 +45,11 @@ class PreferencesService {
 
   SavedLocation? getSavedLocation() {
     if (_prefs == null) return null;
-    
-    final lat = _prefs!.getDouble(_keyLocationLat);
-    final lng = _prefs!.getDouble(_keyLocationLng);
-    final label = _prefs!.getString(_keyLocationLabel);
+
+    final prefs = _prefs!;
+    final lat = prefs.getDouble(_keyLocationLat);
+    final lng = prefs.getDouble(_keyLocationLng);
+    final label = prefs.getString(_keyLocationLabel);
 
     if (lat == null || lng == null) {
       return null;

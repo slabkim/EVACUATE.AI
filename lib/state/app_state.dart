@@ -237,7 +237,6 @@ class AppState extends ChangeNotifier {
       case TargetPlatform.fuchsia:
         return 'fuchsia';
     }
-    return 'unknown';
   }
 
   Future<void> refreshDashboard() async {

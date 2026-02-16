@@ -5,7 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 typedef NotificationTapCallback = void Function(Map<String, dynamic> payload);
 
 class LocalNotifService {
-  static const String _alertChannelId = 'evacuate_alert_channel_v3';
+  static const String _alertChannelId = 'evacuate_alert_channel_v4';
   static const String _alertChannelName = 'Peringatan Gempa';
   static const String _alertChannelDescription =
       'Notifikasi peringatan gempa EVACUATE.AI';

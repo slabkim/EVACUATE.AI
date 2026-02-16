@@ -43,7 +43,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       payload: message.data,
     );
   } catch (e) {
-    print('Background message handler error: $e');
+    debugPrint('Background message handler error: $e');
   }
 }
 

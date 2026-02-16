@@ -15,6 +15,10 @@ export async function sendPushToToken(
   db();
   return getMessaging().send({
     token: input.token,
+    notification: {
+      title: input.title,
+      body: input.body,
+    },
     data: {
       ...input.data,
       title: input.title,
@@ -22,6 +26,10 @@ export async function sendPushToToken(
     },
     android: {
       priority: "high",
+      notification: {
+        sound: "sirene",
+        channelId: "evacuate_alert_channel_v4",
+      },
     },
     apns: {
       headers: {
