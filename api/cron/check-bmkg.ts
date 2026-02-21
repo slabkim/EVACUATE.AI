@@ -21,7 +21,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Metode tidak diizinkan." });
   }
 
-  if (!isAuthorized(req)) {
+  const expectedSecret = process.env.CRON_SECRET?.trim();
+  if (!expectedSecret) {
+    return res.status(500).json({
+      error: "Konfigurasi CRON_SECRET belum diset di environment.",
+    });
+  }
+
+  if (!isAuthorized(req, expectedSecret)) {
     return res.status(401).json({ error: "Akses cron tidak sah." });
   }
 
@@ -174,12 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-function isAuthorized(req: VercelRequest): boolean {
-  const expectedSecret = process.env.CRON_SECRET;
-  if (!expectedSecret) {
-    return true;
-  }
-
+function isAuthorized(req: VercelRequest, expectedSecret: string): boolean {
   const headerSecret = normalizeHeader(req.headers["x-cron-secret"]);
   const authHeader = normalizeHeader(req.headers.authorization);
   const bearerSecret = authHeader.startsWith("Bearer ")

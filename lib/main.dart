@@ -12,6 +12,7 @@ import 'screens/emergency_alert_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/map_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/api_client.dart';
 import 'services/audio_service.dart';
@@ -196,6 +197,19 @@ class _AppShellState extends State<_AppShell> {
     );
   }
 
+  Future<void> _openNotifications() async {
+    if (!mounted) {
+      return;
+    }
+    final appState = context.read<AppState>();
+    appState.markNotificationsRead();
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const NotificationsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -204,6 +218,7 @@ class _AppShellState extends State<_AppShell> {
       HomeScreen(
         onTapChatAi: () => appState.setSelectedTab(2),
         onTapChecklist: _showChecklist,
+        onTapNotifications: _openNotifications,
       ),
       const MapScreen(),
       const ChatScreen(),

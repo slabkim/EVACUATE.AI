@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -208,13 +208,11 @@ class AppState extends ChangeNotifier {
     if (token == null || token.isEmpty) {
       return;
     }
-    
-    // Print FCM token for testing purposes
-    print('═══════════════════════════════════════════════════════');
-    print('📱 FCM TOKEN (Copy untuk test script):');
-    print(token);
-    print('═══════════════════════════════════════════════════════');
-    
+
+    if (kDebugMode) {
+      debugPrint('FCM token terdeteksi (debug): ${_maskToken(token)}');
+    }
+
     await _apiClient.registerDevice(
       token: token,
       platform: _platformLabel(),
@@ -237,6 +235,15 @@ class AppState extends ChangeNotifier {
       case TargetPlatform.fuchsia:
         return 'fuchsia';
     }
+  }
+
+  String _maskToken(String token) {
+    if (token.length <= 16) {
+      return token;
+    }
+    final prefix = token.substring(0, 8);
+    final suffix = token.substring(token.length - 8);
+    return '$prefix...$suffix';
   }
 
   Future<void> refreshDashboard() async {
@@ -454,6 +461,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void markNotificationsRead() {
+    if (!_hasUnreadNotifications) {
+      return;
+    }
+    _hasUnreadNotifications = false;
+    notifyListeners();
+  }
+
   void cycleThemeMode() {
     if (_themeMode == ThemeMode.system) {
       _themeMode = ThemeMode.light;
@@ -511,7 +526,7 @@ class AppState extends ChangeNotifier {
     // Show local notification as well
     unawaited(
       _fcmService.showLocalNotification(
-        title: '⚠️ PERINGATAN KRITIS (TEST)',
+        title: 'âš ï¸ PERINGATAN KRITIS (TEST)',
         body: 'Gempa M 6.8 terdeteksi di Jawa Barat. Segera berlindung!',
         payload: {
           'magnitude': 6.8,
@@ -588,3 +603,4 @@ class _NearbyEvent {
   final EarthquakeEvent event;
   final double distanceKm;
 }
+

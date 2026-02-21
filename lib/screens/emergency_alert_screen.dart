@@ -347,14 +347,22 @@ class _RiskInfo extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 3),
-        Text(
-          value,
-          style: TextStyle(
-            color: accent,
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: accent,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+              maxLines: 1,
+              softWrap: false,
+              textAlign: TextAlign.center,
+            ),
           ),
-          textAlign: TextAlign.center,
         ),
       ],
     );

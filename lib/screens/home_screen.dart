@@ -28,10 +28,12 @@ class HomeScreen extends StatelessWidget {
     super.key,
     required this.onTapChatAi,
     required this.onTapChecklist,
+    required this.onTapNotifications,
   });
 
   final VoidCallback onTapChatAi;
   final VoidCallback onTapChecklist;
+  final VoidCallback onTapNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +52,7 @@ class HomeScreen extends StatelessWidget {
                 _HeaderLokasi(
                   label: appState.locationLabel,
                   hasUnreadNotifications: appState.hasUnreadNotifications,
-                  onTapNotifications: () => appState.setSelectedTab(3),
+                  onTapNotifications: onTapNotifications,
                 ),
                 Expanded(
                   child: RefreshIndicator(
